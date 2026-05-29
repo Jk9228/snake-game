@@ -110,9 +110,10 @@ const difficulty = ref<string>('easy')
 const players = ref<Player[]>([])
 const obstacles = ref<Pos[]>([])
 const started = ref(false)
+const initSpeed = ref(120)
 let visualProgress = 0
 let lastTick = 0
-let curInt = 95
+let curInt = 120
 let rafId = 0
 let timer: ReturnType<typeof setTimeout> | null = null
 
@@ -342,7 +343,7 @@ function tick() {
   lastTick = performance.now()
   if (mode.value === 'free') curInt = getFreeSpeed(players.value[0]!.score)
   else if (mode.value === 'speed') { curInt = getSpeedSpeed(players.value[0]!.score); speedMaxSpeed = Math.min(speedMaxSpeed, curInt) }
-  else curInt = 95
+  else curInt = initSpeed.value
   timer = setTimeout(tick, curInt)
 }
 
@@ -447,7 +448,7 @@ function tickCTF() {
     }
   })
 
-  lastTick = performance.now(); curInt = 95
+  lastTick = performance.now(); curInt = initSpeed.value
   if (!started.value) return
   timer = setTimeout(tickCTF, curInt)
 }
@@ -618,6 +619,10 @@ onUnmounted(() => {
           <p class="label">目標分數</p>
           <input type="number" v-model.number="ctfTarget" min="1" />
         </div>
+        <div class="speed-input" v-if="mode !== 'free' && mode !== 'speed'">
+          <p class="label">初始速度 (ms)</p>
+          <input type="number" v-model.number="initSpeed" min="20" max="500" />
+        </div>
       </div>
       <div class="difficulty" v-if="mode === 'single'">
         <p class="label">DIFFICULTY</p>
@@ -752,8 +757,9 @@ kbd{display:inline-block;padding:2px 7px;font-size:13px;font-family:inherit;back
 .mode-select select:hover{border-color:#e94560}
 .mode-select select:focus{border-color:#e94560}
 .ctf-target{margin-top:8px}
-.ctf-target input{width:60px;padding:4px 8px;font-size:14px;font-weight:600;font-family:inherit;text-align:center;background:#1a1a4e;border:2px solid #334466;border-radius:6px;color:#e94560;outline:none}
-.ctf-target input:focus{border-color:#e94560}
+.ctf-target input,.speed-input input{width:60px;padding:4px 8px;font-size:14px;font-weight:600;font-family:inherit;text-align:center;background:#1a1a4e;border:2px solid #334466;border-radius:6px;color:#e94560;outline:none}
+.ctf-target input:focus,.speed-input input:focus{border-color:#e94560}
+.speed-input{margin-top:8px}
 .diff-btns{display:flex;gap:6px;justify-content:center;margin-top:6px}
 .diff-btn{padding:5px 12px;font-size:12px;font-weight:600;font-family:inherit;background:#1a1a4e;border:2px solid #334466;border-radius:6px;color:#8899aa;cursor:pointer;transition:all .15s}
 .diff-btn:hover{border-color:#e94560;color:#ccddee}

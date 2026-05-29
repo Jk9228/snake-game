@@ -65,6 +65,9 @@ kbd{display:inline-block;padding:2px 7px;font-size:13px;font-family:inherit;back
 .ctf-target.show{display:block}
 #ctfTargetInput{width:60px;padding:4px 8px;font-size:14px;font-weight:600;font-family:inherit;text-align:center;background:#1a1a4e;border:2px solid #334466;border-radius:6px;color:#e94560;outline:none}
 #ctfTargetInput:focus{border-color:#e94560}
+.speed-input{margin-top:8px}
+.speed-input input{width:60px;padding:4px 8px;font-size:14px;font-weight:600;font-family:inherit;text-align:center;background:#1a1a4e;border:2px solid #334466;border-radius:6px;color:#e94560;outline:none}
+.speed-input input:focus{border-color:#e94560}
 .difficulty{text-align:center;padding:10px;background:#0f3460;border-radius:12px;border:2px solid #1a1a4e}
 .diff-btns{display:flex;flex-wrap:wrap;gap:6px;justify-content:center;margin-top:6px}
 .diff-btn{padding:5px 12px;font-size:12px;font-weight:600;font-family:inherit;background:#1a1a4e;border:2px solid #334466;border-radius:6px;color:#8899aa;cursor:pointer;transition:all .15s}
@@ -81,6 +84,10 @@ kbd{display:inline-block;padding:2px 7px;font-size:13px;font-family:inherit;back
       <div class="mode-select">
         <p class="label">MODE</p>
         <select id="modeSelect"></select>
+        <div id="speedSection">
+          <p class="label">初始速度 (ms)</p>
+          <input type="number" id="speedInput" min="20" max="500" value="120" />
+        </div>
         <div class="ctf-target" id="ctfTargetSection">
           <p class="label">目標分數</p>
           <input type="number" id="ctfTargetInput" min="1" value="5" />
@@ -209,8 +216,9 @@ let obstacles = []
 let started = false
 let timer = null
 let lastTick = 0
-let curInt = 95
+let curInt = 120
 let rafId = null
+function getInitSpeed() { return parseInt(document.getElementById('speedInput').value) || 120 }
 
 // Speed survival state
 let speedStartTime = null
@@ -466,7 +474,7 @@ function tick() {
   lastTick = performance.now()
   if (mode === 'free') curInt = getFreeSpeed(players[0].score)
   else if (mode === 'speed') { curInt = getSpeedSpeed(players[0].score); speedMaxSpeed = Math.min(speedMaxSpeed, curInt) }
-  else curInt = 95
+  else curInt = getInitSpeed()
   timer = setTimeout(tick, curInt)
 }
 
@@ -571,7 +579,7 @@ function tickCTF() {
   })
 
   renderAll(); updateUI()
-  lastTick = performance.now(); curInt = 95
+  lastTick = performance.now(); curInt = getInitSpeed()
   if (!started) return
   timer = setTimeout(tickCTF, curInt)
 }
@@ -635,6 +643,7 @@ function switchMode(m) {
   mode = m
   modeSelect.value = m
   diffSection.classList.toggle('hidden', m !== 'single')
+  speedSection.classList.toggle('hidden', m === 'free' || m === 'speed')
   ctfTargetSection.classList.toggle('show', m === 'ctf')
   const dualMode = m === 'dual' || m === 'ctf'
   controlsText.innerHTML = m === 'single' || m === 'free' || m === 'speed'
@@ -729,6 +738,7 @@ document.addEventListener('keydown', e => {
 // Build mode select
 const modeNames = { single: '單人', dual: '雙人', free: '自由', speed: '速度遞增', ctf: '奪旗戰' }
 const modeSelect = document.getElementById('modeSelect')
+const speedSection = document.getElementById('speedSection')
 const ctfTargetSection = document.getElementById('ctfTargetSection')
 Object.entries(modeNames).forEach(([v, label]) => {
   const opt = document.createElement('option'); opt.value = v; opt.textContent = label
