@@ -395,7 +395,10 @@ function tickCTF() {
 
     ctfFlags.value.forEach(f => {
       if (f.carriedBy !== null) return
-      if (f.x === next.x && f.y === next.y) f.carriedBy = i
+      if (f.x === next.x && f.y === next.y) {
+        if (f.type === 'base' && f.owner === i && isInBase(f.x, f.y, f.owner)) return
+        f.carriedBy = i
+      }
     })
 
     if (isInBase(next.x, next.y, i)) {
@@ -444,7 +447,6 @@ function tickCTF() {
     if (ctfWinner.value !== null) return
     if (pl.score >= ctfTarget) {
       ctfWinner.value = i
-      started.value = false
     }
   })
 
@@ -479,7 +481,7 @@ function switchMode(m: 'single' | 'dual' | 'free' | 'speed' | 'ctf') {
 function onKey(e: KeyboardEvent) {
   if (e.key === ' ') {
     e.preventDefault()
-    if (started.value || players.value.some(p => p.gameOver)) { reset(); return }
+    if (started.value || players.value.some(p => p.gameOver) || ctfWinner.value !== null) { reset(); return }
     speedStartTime = performance.now()
     start()
     return

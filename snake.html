@@ -508,7 +508,10 @@ function tickCTF() {
     // Pick up flag
     ctfFlags.forEach(f => {
       if (f.carriedBy !== null) return
-      if (f.x === next.x && f.y === next.y) f.carriedBy = i
+      if (f.x === next.x && f.y === next.y) {
+        if (f.type === 'base' && f.owner === i && isInBase(f.x, f.y, f.owner)) return
+        f.carriedBy = i
+      }
     })
 
     // Score flags at own base
@@ -560,7 +563,6 @@ function tickCTF() {
     if (ctfWinner !== null) return
     if (pl.score >= ctfTarget) {
       ctfWinner = i
-      started = false
       infoEl.innerHTML = `<p class="game-over">P${i+1} 獲勝!</p><p style="font-size:13px">P1: ${players[0].score} | P2: ${players[1].score}</p><p style="margin-top:6px">Press <kbd>Space</kbd> to restart</p>`
     }
   })
@@ -681,7 +683,7 @@ function switchMode(m) {
 document.addEventListener('keydown', e => {
   if (e.key === ' ') {
     e.preventDefault()
-    if (started || players.some(p => p.gameOver)) { reset(); return }
+    if (started || players.some(p => p.gameOver) || ctfWinner !== null) { reset(); return }
     speedStartTime = performance.now()
     start()
     return
