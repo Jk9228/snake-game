@@ -1,7 +1,7 @@
 # PLAN — Snake Game
 
 ## Overview
-A 20×20 Snake game with three modes (single, dual, free) and difficulty settings, implemented in both standalone HTML and Vue 3 SFC. The game features smooth rAF-based interpolation for zero-latency input response, batch food respawning, and dynamic difficulty scaling in free mode.
+A 20×20 Snake game with five modes (single, dual, free, speed survival, capture the flag) and difficulty settings, implemented in both standalone HTML and Vue 3 SFC. The game features smooth rAF-based interpolation for zero-latency input response, batch food respawning, dynamic difficulty scaling in free mode, and configurable speed (20–500ms) for single/dual/ctf modes.
 
 ## Architecture
 
@@ -65,22 +65,34 @@ setTimeout(tick, curInt)
   - Obstacles: start at 60pts, 1 + floor((score−60)/20)
 - Obstacle avoidance zone same as hell mode
 
+### Speed Survival ✅
+- Start speed 150ms; ≥120ms: −3ms/food, <120ms: −5ms/food; min 20ms
+- Obstacles appear at ≤110ms
+- Leaderboard: localStorage top 5 (score, timestamp, duration, max speed)
+- Game-over screen shows rank comparison
+- Speed meter in UI sidebar
+
+### Capture the Flag (Dual) ✅
+| Item | Spec |
+|------|------|
+| Board | Shared 20×20 |
+| Bases | Corner 3×3 (P1 bottom-left, P2 top-right) |
+| Center flags | 3 flags, +1pt each, carry to own base |
+| Base flags | 1 per base, steal enemy +3pt, recover own +1pt |
+| Flag protection | Own base flag at own base cannot be picked up by owner |
+| Respawn (scored) | Instant at base center (base flags) or random free pos (center flags) |
+| Carrying | Flag follows head, can carry multiple |
+| Death | All carried flags scatter randomly on map |
+| Player respawn | 3s delay at own base |
+| Collision | Head-head → both die; Head-body (any) → head dies; Encircle → +1pt (10-tick cooldown) |
+| Score display | Floating +N popup (combined for multiple flags) |
+| Win | Configurable target score (default 5); game pauses → Space resets → Space starts |
+
 ---
 
 ## New Modes (Planned)
 
-### 1. Speed Survival
-| Item | Spec |
-|------|------|
-| Start speed | 150ms (optional 120ms) |
-| Speed decrease | ≥120ms: −3ms/food; <120ms: −5ms/food |
-| Min speed | 20ms |
-| Obstacles appear | Speed ≤ 110ms |
-| Goal | Survive longest + highest score |
-| Leaderboard | Top 5: score, timestamp, duration, max speed |
-| Display | Sidebar (toggleable) + game-over rank comparison |
-
-### 2. AI Opponent
+### 1. AI Opponent
 | Item | Spec |
 |------|------|
 | Board | Shared, bodies pass through |
@@ -101,20 +113,7 @@ setTimeout(tick, curInt)
 | Count | 1 ghost at a time |
 | Collision | −2 points + 0.5s stun (snake pauses in place) |
 
-### 4. Capture the Flag (Dual)
-| Item | Spec |
-|------|------|
-| Board | Shared |
-| Bases | Corner 3×3 (P1 bottom-left, P2 top-right) |
-| Collision | Head-head → both die; Head-body → head dies; Encircle opponent head → +1pt |
-| Center flags | 3 flags active, +1pt each to own base, respawn at new position |
-| Base flags | 1 per base, steal + return to own base = +3pts, respawns 10s after scored |
-| Carrying | Flag follows head, can carry multiple |
-| Death | All carried flags scatter randomly on map |
-| Respawn | 3s delay at own base |
-| Win | Configurable target score |
-
-### 5. Gravity Mode
+### 4. Gravity Mode
 | Item | Spec |
 |------|------|
 | Food spawn | Board top (row 0-5), random horizontal position |
@@ -125,7 +124,7 @@ setTimeout(tick, curInt)
 | Snake growth | NO growth (score only) |
 | Game over | Wall/self collision OR too many misses |
 
-### 6. Dynamic Black Hole
+### 5. Dynamic Black Hole
 | Item | Spec |
 |------|------|
 | Movement | 1 cell/tick, random direction |
@@ -136,7 +135,7 @@ setTimeout(tick, curInt)
 | Body collision | Segment N touches → segments N+ severed and disappear, score lost = segments lost |
 | Food interaction | Black hole consumes food in range (grows), no direct effect on snake |
 
-### 7. Co-op Mode
+### 6. Co-op Mode
 | Item | Spec |
 |------|------|
 | Board | Shared |
@@ -153,7 +152,7 @@ setTimeout(tick, curInt)
 | — Collision | Player head→AI = player dies (uses revive); AI head→player body/wall/obstacle = AI dies |
 | — Respawn | 3s delay |
 
-### 8. Split Mode (Puzzle)
+### 7. Split Mode (Puzzle)
 | Item | Spec |
 |------|------|
 | Genre | Level-based puzzle (5 initial levels) |
@@ -219,12 +218,12 @@ setTimeout(tick, curInt)
 
 | Phase | Contents | Est. Time |
 |-------|----------|-----------|
-| **1. Refactor** | Mode system (mode + modifiers), toggle UI | — |
-| **2. Simple** | Speed Survival, Wall Wrap, Reverse Control | 1-2 days |
+| **1. Speed Survival** | Core mode with leaderboard | ✅ |
+| **2. Capture the Flag** | Shared board, flags, bases, scoring | ✅ |
 | **3. Items** | Power-up system (all items + magnet), Portals | 2-3 days |
 | **4. AI** | AI Opponent, Ghost Snake | 2-3 days |
 | **5. Advanced** | Gravity, Black Hole, Split Mode | 3-4 days |
-| **6. Multi** | Co-op, Capture the Flag | 2-3 days |
+| **6. Co-op** | Two-player co-op with disruptor AI | 2-3 days |
 
 ## Key Design Decisions
 
@@ -268,6 +267,19 @@ setTimeout(tick, curInt)
 12. **Smooth movement**: Switched from grid-cell rendering to positioned overlays with CSS transitions
 13. **CSS transition → rAF interpolation**: Replaced CSS transitions with requestAnimationFrame loop for zero-latency input
 14. **boardEl preservation fix**: Fixed reset() creating new players without boardEl reference (snake.html)
+15. **Speed Survival mode**: New mode with dynamic speed, leaderboard, rank display
+16. **Capture the Flag mode**: Shared board, flags, bases, scoring, respawn mechanics
+17. **Flag respawn fix**: CTF flags use random free positions avoiding both snakes & obstacles
+18. **Snake colors**: P1 green / P2 orange across all modes; eyes on all modes
+19. **Own flag recovery**: Picking up scattered own base flag returns to base → +1pt
+20. **CTF flag protection**: Own base flag at base cannot be picked up by owner
+21. **Game pause on win**: CTF pauses at target score; Space → reset → wait → start
+22. **Instant flag respawn**: All flags respawn instantly on score (no setTimeout delay)
+23. **Mode dropdown**: Buttons replaced with `<select>` dropdown
+24. **CTF score animation**: Floating +N popup, combined for multiple flags
+25. **Custom CTF target**: Configurable target score (default 5)
+26. **Configurable init speed**: 20–500ms slider for single/dual/ctf (default 120)
+27. **Base territory exclusion**: Random flag spawns avoid base areas
 
 ## Known Issues & Edge Cases
 

@@ -40,6 +40,7 @@ git push -u origin master
 - `src/App.vue` — Vue 3 SFC version (Vite + TypeScript)
 - `index.html` — Vite entry point
 - `vite.config.ts` — Vite configuration
+- `docs/PLAN.md` — Detailed implementation plan & history
 
 ## Key Conventions
 - **Single food batch-respawn**: new food spawns only after ALL current food is eaten (one batch at a time)
@@ -50,17 +51,38 @@ git push -u origin master
 - **Dual mode**: P2 (WASD) on the left board, P1 (arrows) on the right; board DOM is ordered [P2, P1]
 - **Space behavior**: running/game-over → reset to start screen; start screen → start
 - **Free mode**: speed starts at 120ms (−5ms per 20pts), +1 food per 30pts, obstacles from 60pts (+1 per 20pts)
+- **Speed Survival**: start speed 150ms (−3ms/food ≥120ms, −5ms/food <120ms), min 20ms; obstacles at ≤110ms
+- **CTF (Capture the Flag)**: shared board, 3 center flags (+1pt), 2 base flags (steal +3pt, own recovery +1pt), encircle +1pt; configurable target score (default 5)
+- **P1 green / P2 orange**: snake coloring applied in all modes; `.p0` / `.p1` CSS classes
+- **Eyes on all modes**: every snake head has two eyes via `eyeStyle()`
+- **Mode dropdown**: mode selection via `<select>` instead of buttons
+- **Configurable init speed**: single/dual/ctf modes allow custom start speed (20–500ms, default 120ms)
 
-## New Modes (Planned)
+## Implemented Modes
 
-### Architecture
-- `mode` selects core gameplay; `modifiers[]` toggles extra features (wall-wrap, portals, reverse, power-ups)
+### Single / Dual / Free
+(Original modes — see PLAN.md for details)
+
+### Speed Survival ✅
+- Start speed 150ms; ≥120ms: −3ms/food, <120ms: −5ms/food; min 20ms
+- Obstacles appear at ≤110ms
 - Leaderboard: localStorage top 5 (score, timestamp, duration, max speed)
+- Game-over screen shows rank comparison
+- Speed meter in UI sidebar
 
-### Speed Survival
-- Start speed 150ms (optional 120ms); ≥120ms: -3ms/food, <120ms: -5ms/food; min 20ms
-- Obstacles at ≤110ms; goal: survive longest + highest score
-- Leaderboard in sidebar (toggleable) + game-over screen with rank comparison
+### Capture the Flag (Dual) ✅
+- Shared 20×20 board; P1 base bottom-left 3×3, P2 base top-right 3×3
+- 3 center flags (+1pt each), 2 base flags (steal enemy +3pt, recover own +1pt)
+- Flags follow head; can carry multiple; death scatters flags randomly
+- Own flag protection: base flags at own base cannot be picked up by owner
+- Instant flag respawn on score (no delay); base flags respawn at base center
+- Head-head both die; head-body head dies; encircle opponent = +1pt (10-tick cooldown)
+- 3-second player respawn; game pauses at target score
+- Score animation: floating +N popup (combined for multiple flags)
+- Custom target score input (default 5)
+- Base territories excluded from random flag spawns
+
+## Planned Modes
 
 ### AI Opponent
 - Shared board, bodies pass through, head-to-head kills both
@@ -72,13 +94,6 @@ git push -u origin master
 ### Ghost Snake
 - Records direction turn-points (last 5 games, player selects which to load)
 - Ghost starts delayed then loops; semi-transparent; collision = -2pts + 0.5s stun
-
-### Capture the Flag (Dual)
-- Same board; P1 base bottom-left 3×3, P2 base top-right 3×3
-- Collision: head-head both die, head-body head dies, encircle = +1pt
-- 3 center flags (+1pt each), base flag stolen (+3pts, respawn 10s)
-- Flags follow head; can carry multiple; death scatters flags randomly; respawn 3s
-- Win: configurable target score
 
 ### Gravity Mode
 - Food spawns top (row 0-5), falls 2 ticks/cell initially, accelerates (every 10pts + every 5 misses)
