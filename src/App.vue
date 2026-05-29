@@ -117,6 +117,10 @@ const powerUps = ref<PowerUp[]>([])
 const started = ref(false)
 const initSpeed = ref(120)
 const magnetPickups = ref(false)
+function toggleMagnet() {
+  if (mode.value === 'magnet') return
+  magnetPickups.value = !magnetPickups.value
+}
 let visualProgress = 0
 let lastTick = 0
 let curInt = 120
@@ -613,11 +617,8 @@ onUnmounted(() => {
 
 <template>
   <div class="game-container">
-    <div class="toggle-box">
-      <label class="toggle-label">
-        <input type="checkbox" v-model="magnetPickups" :disabled="mode === 'magnet'" />
-        磁鐵
-      </label>
+    <div class="toggle-box" :class="{ active: magnetPickups || mode === 'magnet', disabled: mode === 'magnet' }" @click="toggleMagnet">
+      <span class="toggle-text">磁鐵</span>
     </div>
     <div class="boards">
       <template v-if="mode === 'ctf'">
@@ -842,10 +843,13 @@ kbd{display:inline-block;padding:2px 7px;font-size:13px;font-family:inherit;back
 .difficulty{text-align:center;padding:10px;background:#0f3460;border-radius:12px;border:2px solid #1a1a4e}
 .cell.powerup{background:#60a5fa;box-shadow:none;border-radius:3px;animation:pulse .6s ease-in-out infinite alternate}
 .snake-seg.magnet-active{box-shadow:0 0 14px #60a5fa, inset 0 0 7px #60a5fa}
-.toggle-box{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;padding:14px 10px;background:#0f3460;border-radius:12px;border:2px solid #1a1a4e;writing-mode:vertical-lr}
-.toggle-label{display:flex;flex-direction:column;align-items:center;gap:6px;font-size:11px;font-weight:600;color:#aabbcc;cursor:pointer;letter-spacing:1px}
-.toggle-label input[type=checkbox]{accent-color:#60a5fa;width:14px;height:14px;cursor:pointer;transform:rotate(90deg)}
-.toggle-label input[type=checkbox]:disabled{opacity:.4;cursor:default}
+.toggle-box{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:14px 10px;background:#0f3460;border-radius:12px;border:2px solid #1a1a4e;cursor:pointer;transition:all .2s;user-select:none;writing-mode:vertical-lr}
+.toggle-box:hover{border-color:#60a5fa}
+.toggle-box.active{border-color:#60a5fa;background:#1e3a5f}
+.toggle-box.disabled{opacity:.4;cursor:default;border-color:#1a1a4e}
+.toggle-box.disabled:hover{border-color:#1a1a4e}
+.toggle-text{font-size:11px;font-weight:700;color:#8899aa;letter-spacing:3px;transition:color .2s}
+.toggle-box.active .toggle-text{color:#60a5fa}
 .cell.base-p0{background:#1a4a3e;box-shadow:none}
 .cell.base-p1{background:#4a1a3e;box-shadow:none}
 .cell.flag{background:#fbbf24;box-shadow:none;border-radius:4px}
