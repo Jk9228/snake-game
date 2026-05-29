@@ -108,6 +108,7 @@ interface Player {
   gameOver: boolean
   magnetUntil: number
   prevSnake: Pos[]
+  outOfBounds: number
 }
 
 const mode = ref<'single' | 'dual' | 'free' | 'speed' | 'ctf' | 'magnet'>('single')
@@ -163,7 +164,7 @@ const gameOverRank = computed(() => {
 
 function makePlayer(startX: number, startY: number, dir: Pos): Player {
   const dirKey = posToKey(dir)
-  return { snake: [{ x: startX, y: startY }], foods: [], smoothFoods: [], dir, dirKey, inputQueue: [], dirCooldown: 0, score: 0, gameOver: false, magnetUntil: 0, prevSnake: [{ x: startX, y: startY }] }
+  return { snake: [{ x: startX, y: startY }], foods: [], smoothFoods: [], dir, dirKey, inputQueue: [], dirCooldown: 0, score: 0, gameOver: false, magnetUntil: 0, prevSnake: [{ x: startX, y: startY }], outOfBounds: 0 }
 }
 
 function isOccupied(pl: Player, includePowerUps = false) {
@@ -353,7 +354,12 @@ function tick() {
     const head = pl.snake[0]!
     const next: Pos = { x: head.x + pl.dir.x, y: head.y + pl.dir.y }
 
-    if (next.x < 0 || next.x >= SIZE || next.y < 0 || next.y >= SIZE) { pl.gameOver = true; onGameOver(pl); return }
+    if (next.x < 0 || next.x >= SIZE || next.y < 0 || next.y >= SIZE) {
+      if (pl.outOfBounds > 0) { pl.gameOver = true; onGameOver(pl); return }
+      pl.outOfBounds = performance.now()
+      return
+    }
+    pl.outOfBounds = 0
     if (pl.snake.some(s => s.x === next.x && s.y === next.y)) { pl.gameOver = true; onGameOver(pl); return }
     if (obstacles.value.some(o => o.x === next.x && o.y === next.y)) { pl.gameOver = true; onGameOver(pl); return }
 
@@ -628,6 +634,12 @@ function updateSegmentPositions() {
 function rafLoop(time: number) {
   if (started.value && lastTick > 0) {
     visualProgress = Math.min((time - lastTick) / curInt, 1)
+    const now = performance.now()
+    players.value.forEach(pl => {
+      if (pl.outOfBounds > 0 && now - pl.outOfBounds > 20) {
+        pl.gameOver = true; onGameOver(pl)
+      }
+    })
     if (mode.value === 'magnet') {
       players.value.forEach(pl => {
         if (pl.gameOver) return
