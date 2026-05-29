@@ -639,7 +639,7 @@ function rafLoop(time: number) {
     visualProgress = Math.min((time - lastTick) / curInt, 1)
     const now = performance.now()
     players.value.forEach(pl => {
-      if (pl.outOfBounds > 0 && now - pl.outOfBounds > 20) {
+      if (pl.outOfBounds > 0 && now - pl.outOfBounds > 40) {
         pl.gameOver = true; onGameOver(pl)
       }
     })
