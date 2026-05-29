@@ -618,7 +618,7 @@ onUnmounted(() => {
 <template>
   <div class="game-container">
     <div class="toggle-box" :class="{ active: magnetPickups || mode === 'magnet', disabled: mode === 'magnet' }" @click="toggleMagnet">
-      <span class="toggle-text">磁鐵</span>
+      <span class="toggle-text">🧲</span>
     </div>
     <div class="boards">
       <template v-if="mode === 'ctf'">
@@ -848,7 +848,7 @@ kbd{display:inline-block;padding:2px 7px;font-size:13px;font-family:inherit;back
 .toggle-box.active{border-color:#60a5fa;background:#1e3a5f}
 .toggle-box.disabled{opacity:.4;cursor:default;border-color:#1a1a4e}
 .toggle-box.disabled:hover{border-color:#1a1a4e}
-.toggle-text{font-size:11px;font-weight:700;color:#8899aa;letter-spacing:3px;transition:color .2s}
+.toggle-text{font-size:20px;transition:color .2s}
 .toggle-box.active .toggle-text{color:#60a5fa}
 .cell.base-p0{background:#1a4a3e;box-shadow:none}
 .cell.base-p1{background:#4a1a3e;box-shadow:none}
