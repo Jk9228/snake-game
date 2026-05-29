@@ -632,7 +632,7 @@ function rafLoop(time: number) {
           const dx = hc - f.x, dy = vc - f.y
           const dist = Math.sqrt(dx * dx + dy * dy)
           if (dist > 0.01) {
-            const speed = Math.min(dist * 0.02, 0.08)
+            const speed = Math.min(dist * 0.01, 0.04)
             const nx = f.x + (dx / dist) * speed
             const ny = f.y + (dy / dist) * speed
             const onBody = pl.snake.some((s, si) => si > 0 && Math.abs(nx - (s.x + 0.5)) < 0.4 && Math.abs(ny - (s.y + 0.5)) < 0.4)
