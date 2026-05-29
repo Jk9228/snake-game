@@ -15,6 +15,8 @@ body{display:flex;justify-content:center;align-items:center;min-height:100vh;bac
 .snake-container{position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none}
 .snake-seg{position:absolute;width:25px;height:25px;background:#4ade80}
 .snake-seg.head{background:#22c55e}
+.snake-seg.p1{background:#fb923c}
+.snake-seg.p1.head{background:#f97316}
 .snake-seg.flag-carried{box-shadow:0 0 10px #fbbf24, inset 0 0 6px #fbbf24}
 .cell.obstacle{background:#5b21b6;box-shadow:none;border-radius:3px}
 .speed-info{font-size:12px;color:#aabbcc;padding:4px 0}
@@ -289,7 +291,7 @@ function generateObstacles(pl) {
   }
 }
 
-function renderPlayer(pl, boardEl) {
+function renderPlayer(pl, boardEl, pi) {
   for (let y = 0; y < SIZE; y++)
     for (let x = 0; x < SIZE; x++) getCell(boardEl, x, y).className = 'cell'
   pl.foods.forEach(f => getCell(boardEl, f.x, f.y).classList.add('food'))
@@ -301,8 +303,8 @@ function renderPlayer(pl, boardEl) {
   while (c.children.length < pl.snake.length) { const s = document.createElement('div'); s.className = 'snake-seg'; c.appendChild(s) }
   while (c.children.length > pl.snake.length) c.removeChild(c.lastChild)
   for (let i = 0; i < pl.snake.length; i++) {
-    c.children[i].className = 'snake-seg' + (i === 0 ? ' head' : '')
     const seg = pl.snake[i]
+    c.children[i].className = `snake-seg p${pi}` + (i === 0 ? ' head' : '')
     c.children[i].style.transform = `translate(${seg.x * 25}px,${seg.y * 25}px)`
   }
 }
@@ -329,7 +331,7 @@ function renderAll() {
     // Render both snakes
     players.forEach((pl, pi) => renderSnakeCTF(pl, boardEl, pi))
   } else {
-    players.forEach((pl, i) => renderPlayer(pl, pl.boardEl))
+    players.forEach((pl, i) => renderPlayer(pl, pl.boardEl, i))
   }
 }
 
@@ -347,7 +349,7 @@ function renderSnakeCTF(pl, boardEl, pi) {
   const hasFlags = ctfFlags.some(f => f.carriedBy === pi)
   for (let i = 0; i < pl.snake.length; i++) {
     const seg = pl.snake[i]
-    c.children[i].className = 'snake-seg' + (i === 0 ? ' head' : '') + (hasFlags && i === 0 ? ' flag-carried' : '')
+    c.children[i].className = `snake-seg p${pi}` + (i === 0 ? ' head' : '') + (hasFlags && i === 0 ? ' flag-carried' : '')
     c.children[i].style.transform = `translate(${seg.x * 25}px,${seg.y * 25}px)`
   }
 }
@@ -520,6 +522,10 @@ function tickCTF() {
         } else if (f.owner !== i) {
           pl.score += 3; f.carriedBy = null
           setTimeout(() => { if (f.x === -1) { const p = randomFreePos(players[0]); f.x = p.x; f.y = p.y; renderAll() }}, 8000)
+          f.x = -1
+        } else {
+          pl.score++; f.carriedBy = null
+          setTimeout(() => { if (f.x === -1) { const p = randomFreePos(players[0]); f.x = p.x; f.y = p.y; renderAll() }}, 3000)
           f.x = -1
         }
       })

@@ -409,6 +409,10 @@ function tickCTF() {
           pl.score += 3; f.carriedBy = null
           setTimeout(() => { if (f.x === -1) { const p = randomFreePos(players.value[0]!); f.x = p.x; f.y = p.y }}, 8000)
           f.x = -1
+        } else {
+          pl.score++; f.carriedBy = null
+          setTimeout(() => { if (f.x === -1) { const p = randomFreePos(players.value[0]!); f.x = p.x; f.y = p.y }}, 3000)
+          f.x = -1
         }
       })
     }
@@ -551,8 +555,7 @@ onUnmounted(() => {
             <div
               v-for="(seg, i) in segmentStyles[pi]"
               :key="i"
-              class="snake-seg"
-              :class="{ head: seg.head, 'flag-carried': ctfFlags.some(f => f.carriedBy === pi) && i === 0 }"
+              :class="['snake-seg', 'p'+pi, { head: seg.head, 'flag-carried': ctfFlags.some(f => f.carriedBy === pi) && i === 0 }]"
               :style="seg.style"
             ><template v-if="seg.head"><div class="eye" :style="eyeStyle(seg.dirKey!, 0)" /><div class="eye" :style="eyeStyle(seg.dirKey!, 1)" /></template></div>
           </div>
@@ -573,10 +576,9 @@ onUnmounted(() => {
               <div
                 v-for="(seg, i) in segmentStyles[bi === 0 ? 1 : 0]"
                 :key="i"
-                class="snake-seg"
-                :class="{ head: seg.head }"
-                :style="seg.style"
-              ><template v-if="seg.head"><div class="eye" :style="eyeStyle(seg.dirKey!, 0)" /><div class="eye" :style="eyeStyle(seg.dirKey!, 1)" /></template></div>
+              :class="['snake-seg', 'p'+(bi === 0 ? 1 : 0), { head: seg.head }]"
+              :style="seg.style"
+            ><template v-if="seg.head"><div class="eye" :style="eyeStyle(seg.dirKey!, 0)" /><div class="eye" :style="eyeStyle(seg.dirKey!, 1)" /></template></div>
             </div>
           </div>
         </div>
@@ -588,8 +590,7 @@ onUnmounted(() => {
             <div
               v-for="(seg, i) in segmentStyles[bi]"
               :key="i"
-              class="snake-seg"
-              :class="{ head: seg.head }"
+              :class="['snake-seg', 'p'+bi, { head: seg.head }]"
               :style="seg.style"
             ><template v-if="seg.head"><div class="eye" :style="eyeStyle(seg.dirKey!, 0)" /><div class="eye" :style="eyeStyle(seg.dirKey!, 1)" /></template></div>
           </div>
@@ -711,8 +712,11 @@ body{display:flex;justify-content:center;align-items:center;min-height:100vh;bac
 .cell.food{background:#f87171;box-shadow:none;border-radius:50%;animation:pulse .8s ease-in-out infinite alternate}
 .cell.obstacle{background:#5b21b6;box-shadow:none;border-radius:2px}
 .snake-container{position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none}
-.snake-seg{position:absolute;width:27px;height:27px;background:#4ade80;border-radius:50%}
-.snake-seg.head{background:#22c55e;z-index:2}
+.snake-seg{position:absolute;width:27px;height:27px;border-radius:50%}
+.snake-seg.p0{background:#4ade80}
+.snake-seg.p0.head{background:#22c55e;z-index:2}
+.snake-seg.p1{background:#fb923c}
+.snake-seg.p1.head{background:#f97316;z-index:2}
 .snake-seg.head .eye{position:absolute;width:5px;height:5px;background:#fff;border-radius:50%}
 .snake-seg.head .eye::after{content:'';position:absolute;width:2.5px;height:2.5px;background:#111;border-radius:50%;top:50%;left:50%;transform:translate(-50%,-50%)}
 @keyframes pulse{from{transform:scale(.8)}to{transform:scale(1)}}
