@@ -126,6 +126,14 @@ const ctfTarget = 5
 const ctfWinner = ref<number | null>(null)
 const ctfRespawnTimers = ref<number[]>([-1, -1])
 const ctfEncircleCooldown = ref<number[]>([-1, -1])
+const scoreAnims = ref<{id:number, text:string, x:number, y:number, pi:number}[]>([])
+let animId = 0
+
+function addScoreAnim(text: string, cellX: number, cellY: number, pi: number) {
+  const id = ++animId
+  scoreAnims.value.push({ id, text, x: cellX * 25, y: cellY * 25, pi })
+  setTimeout(() => { scoreAnims.value = scoreAnims.value.filter(a => a.id !== id) }, 900)
+}
 
 const leaderboard = computed(() => loadLeaderboard())
 
@@ -404,12 +412,15 @@ function tickCTF() {
         if (f.type === 'center') {
           pl.score++; f.carriedBy = null
           const p = randomFreePos(players.value[0]!); f.x = p.x; f.y = p.y
+          addScoreAnim('+1', next.x, next.y, i)
         } else if (f.owner !== i) {
           pl.score += 3; f.carriedBy = null
           const base = CTF_BASES[f.owner]!; f.x = base.x + 1; f.y = base.y + 1
+          addScoreAnim('+3', next.x, next.y, i)
         } else {
           pl.score++; f.carriedBy = null
           const base = CTF_BASES[f.owner]!; f.x = base.x + 1; f.y = base.y + 1
+          addScoreAnim('+1', next.x, next.y, i)
         }
       })
     }
@@ -555,6 +566,13 @@ onUnmounted(() => {
               :style="seg.style"
             ><template v-if="seg.head"><div class="eye" :style="eyeStyle(seg.dirKey!, 0)" /><div class="eye" :style="eyeStyle(seg.dirKey!, 1)" /></template></div>
           </div>
+          <div
+            v-for="a in scoreAnims"
+            :key="a.id"
+            class="score-popup"
+            :class="'p'+a.pi"
+            :style="{ left: a.x + 'px', top: a.y + 'px' }"
+          >{{ a.text }}</div>
         </div>
       </template>
       <template v-else v-for="(_, bi) in players" :key="bi">
@@ -748,6 +766,10 @@ kbd{display:inline-block;padding:2px 7px;font-size:13px;font-family:inherit;back
 .cell.flag-p0{background:#4ade80;box-shadow:none;border-radius:4px}
 .cell.flag-p1{background:#f87171;box-shadow:none;border-radius:4px}
 .snake-seg.flag-carried{box-shadow:0 0 10px #fbbf24, inset 0 0 6px #fbbf24}
+.score-popup{position:absolute;font-size:28px;font-weight:800;pointer-events:none;z-index:20;animation:scoreFloat .9s ease-out forwards}
+.score-popup.p0{color:#4ade80}
+.score-popup.p1{color:#fb923c}
+@keyframes scoreFloat{0%{opacity:1;transform:translateY(0) scale(1)}100%{opacity:0;transform:translateY(-50px) scale(1.3)}}
 .leaderboard{text-align:center;padding:10px;background:#0f3460;border-radius:12px;border:2px solid #1a1a4e;margin-top:12px}
 .lb-entry{display:flex;justify-content:space-between;font-size:12px;color:#aabbcc;padding:4px 6px;border-bottom:1px solid #1a1a4e;align-items:center}
 .lb-entry:last-child{border-bottom:none}
