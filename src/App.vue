@@ -365,7 +365,7 @@ function tick() {
       for (let fi = pl.smoothFoods.length - 1; fi >= 0; fi--) {
         const sf = pl.smoothFoods[fi]!
         const dx = hc - sf.x, dy = vc - sf.y
-        if (Math.sqrt(dx * dx + dy * dy) < 0.8) {
+        if (Math.sqrt(dx * dx + dy * dy) < 1.5) {
           pl.score++
           pl.smoothFoods.splice(fi, 1)
           pl.foods.pop()
@@ -630,7 +630,7 @@ function rafLoop(time: number) {
           const dx = hc - f.x, dy = vc - f.y
           const dist = Math.sqrt(dx * dx + dy * dy)
           if (dist > 0.01) {
-            const speed = Math.max(dist * 0.15, 0.5)
+            const speed = Math.min(dist * 0.04, 0.25)
             const nx = f.x + (dx / dist) * speed
             const ny = f.y + (dy / dist) * speed
             f.x = Math.max(0, Math.min(SIZE, nx))
