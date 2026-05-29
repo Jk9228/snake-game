@@ -108,7 +108,7 @@ interface Player {
   magnetUntil: number
 }
 
-const mode = ref<'single' | 'dual' | 'free' | 'speed' | 'ctf'>('single')
+const mode = ref<'single' | 'dual' | 'free' | 'speed' | 'ctf' | 'magnet'>('single')
 const difficulty = ref<string>('easy')
 const players = ref<Player[]>([])
 const obstacles = ref<Pos[]>([])
@@ -300,7 +300,7 @@ function reset() {
   ctfWinner.value = null
   ctfRespawnTimers.value = [-1, -1]
   ctfEncircleCooldown.value = [-1, -1]
-  if (mode.value === 'single' || mode.value === 'free' || mode.value === 'speed') {
+  if (mode.value === 'single' || mode.value === 'free' || mode.value === 'speed' || mode.value === 'magnet') {
     players.value = [makePlayer(10, 10, DIR.RIGHT)]
   } else if (mode.value === 'ctf') {
     players.value = [
@@ -357,7 +357,7 @@ function tick() {
   players.value.forEach(pl => {
     if (pl.gameOver) return
     const now = performance.now()
-    if (pl.magnetUntil > now) {
+    if (pl.magnetUntil > now || mode.value === 'magnet') {
       const head = pl.snake[0]!
       pl.foods.forEach(f => {
         const dx = head.x - f.x, dy = head.y - f.y
@@ -510,10 +510,10 @@ function onGameOver(pl: Player) {
   saveLeaderboard({ score: pl.score, timestamp: Date.now(), duration, speed: speedMaxSpeed })
 }
 
-function switchMode(m: 'single' | 'dual' | 'free' | 'speed' | 'ctf') {
+function switchMode(m: 'single' | 'dual' | 'free' | 'speed' | 'ctf' | 'magnet') {
   if (timer) clearTimeout(timer)
   mode.value = m
-  if (m === 'single' || m === 'free' || m === 'speed') {
+  if (m === 'single' || m === 'free' || m === 'speed' || m === 'magnet') {
     players.value = [makePlayer(10, 10, DIR.RIGHT)]
   } else if (m === 'ctf') {
     players.value = [
@@ -544,7 +544,7 @@ function onKey(e: KeyboardEvent) {
     pl.inputQueue.push(newDir)
   }
 
-  if (mode.value === 'single' || mode.value === 'free' || mode.value === 'speed') {
+  if (mode.value === 'single' || mode.value === 'free' || mode.value === 'speed' || mode.value === 'magnet') {
     if (e.key.startsWith('Arrow')) { e.preventDefault(); queueDir(players.value[0]!, e.key.slice(5).toUpperCase()) }
   } else {
     if (e.key.startsWith('Arrow')) { e.preventDefault(); if (!players.value[0]!.gameOver) queueDir(players.value[0]!, e.key.slice(5).toUpperCase()) }
@@ -664,6 +664,7 @@ onUnmounted(() => {
           <option value="free">自由</option>
           <option value="speed">速度遞增</option>
           <option value="ctf">奪旗戰</option>
+          <option value="magnet">磁鐵</option>
         </select>
         <div class="ctf-target" v-if="mode === 'ctf'">
           <p class="label">目標分數</p>
@@ -687,7 +688,7 @@ onUnmounted(() => {
         </div>
       </div>
       <div class="score-box">
-        <template v-if="mode === 'single' || mode === 'free'">
+        <template v-if="mode === 'single' || mode === 'free' || mode === 'magnet'">
           <p class="label">SCORE</p>
           <p class="value">{{ players[0]?.score ?? 0 }}</p>
         </template>
@@ -749,7 +750,7 @@ onUnmounted(() => {
       </div>
       <div class="controls">
         <p class="label">CONTROLS</p>
-        <p class="arrow-keys" v-if="mode === 'single' || mode === 'free' || mode === 'speed'"><kbd>&uarr;&darr;&larr;&rarr;</kbd></p>
+        <p class="arrow-keys" v-if="mode === 'single' || mode === 'free' || mode === 'speed' || mode === 'magnet'"><kbd>&uarr;&darr;&larr;&rarr;</kbd></p>
         <p class="arrow-keys" v-else><kbd>&uarr;&darr;&larr;&rarr;</kbd> <kbd>W A S D</kbd></p>
       </div>
       <div v-if="mode === 'speed'" class="leaderboard">
