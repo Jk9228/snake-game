@@ -122,7 +122,7 @@ let speedSaved = false
 
 // CTF state
 const ctfFlags = ref<CTFFlag[]>([])
-const ctfTarget = 5
+const ctfTarget = ref(5)
 const ctfWinner = ref<number | null>(null)
 const ctfRespawnTimers = ref<number[]>([-1, -1])
 const ctfEncircleCooldown = ref<number[]>([-1, -1])
@@ -441,7 +441,7 @@ function tickCTF() {
 
   players.value.forEach((pl, i) => {
     if (ctfWinner.value !== null) return
-    if (pl.score >= ctfTarget) {
+    if (pl.score >= ctfTarget.value) {
       ctfWinner.value = i; started.value = false
     }
   })
@@ -613,6 +613,10 @@ onUnmounted(() => {
           <option value="speed">速度遞增</option>
           <option value="ctf">奪旗戰</option>
         </select>
+        <div class="ctf-target" v-if="mode === 'ctf'">
+          <p class="label">目標分數</p>
+          <input type="number" v-model.number="ctfTarget" min="1" />
+        </div>
       </div>
       <div class="difficulty" v-if="mode === 'single'">
         <p class="label">DIFFICULTY</p>
@@ -746,6 +750,9 @@ kbd{display:inline-block;padding:2px 7px;font-size:13px;font-family:inherit;back
 .mode-select select{width:100%;margin-top:6px;padding:6px 10px;font-size:14px;font-weight:600;font-family:inherit;background:#1a1a4e;border:2px solid #334466;border-radius:6px;color:#ccddee;cursor:pointer;outline:none}
 .mode-select select:hover{border-color:#e94560}
 .mode-select select:focus{border-color:#e94560}
+.ctf-target{margin-top:8px}
+.ctf-target input{width:60px;padding:4px 8px;font-size:14px;font-weight:600;font-family:inherit;text-align:center;background:#1a1a4e;border:2px solid #334466;border-radius:6px;color:#e94560;outline:none}
+.ctf-target input:focus{border-color:#e94560}
 .diff-btns{display:flex;gap:6px;justify-content:center;margin-top:6px}
 .diff-btn{padding:5px 12px;font-size:12px;font-weight:600;font-family:inherit;background:#1a1a4e;border:2px solid #334466;border-radius:6px;color:#8899aa;cursor:pointer;transition:all .15s}
 .diff-btn:hover{border-color:#e94560;color:#ccddee}

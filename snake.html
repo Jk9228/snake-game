@@ -61,6 +61,10 @@ kbd{display:inline-block;padding:2px 7px;font-size:13px;font-family:inherit;back
 #modeSelect{width:100%;margin-top:6px;padding:6px 10px;font-size:14px;font-weight:600;font-family:inherit;background:#1a1a4e;border:2px solid #334466;border-radius:6px;color:#ccddee;cursor:pointer;outline:none}
 #modeSelect:hover{border-color:#e94560}
 #modeSelect:focus{border-color:#e94560}
+.ctf-target{margin-top:8px;display:none}
+.ctf-target.show{display:block}
+#ctfTargetInput{width:60px;padding:4px 8px;font-size:14px;font-weight:600;font-family:inherit;text-align:center;background:#1a1a4e;border:2px solid #334466;border-radius:6px;color:#e94560;outline:none}
+#ctfTargetInput:focus{border-color:#e94560}
 .difficulty{text-align:center;padding:10px;background:#0f3460;border-radius:12px;border:2px solid #1a1a4e}
 .diff-btns{display:flex;flex-wrap:wrap;gap:6px;justify-content:center;margin-top:6px}
 .diff-btn{padding:5px 12px;font-size:12px;font-weight:600;font-family:inherit;background:#1a1a4e;border:2px solid #334466;border-radius:6px;color:#8899aa;cursor:pointer;transition:all .15s}
@@ -77,8 +81,12 @@ kbd{display:inline-block;padding:2px 7px;font-size:13px;font-family:inherit;back
       <div class="mode-select">
         <p class="label">MODE</p>
         <select id="modeSelect"></select>
+        <div class="ctf-target" id="ctfTargetSection">
+          <p class="label">目標分數</p>
+          <input type="number" id="ctfTargetInput" min="1" value="5" />
+        </div>
       </div>
-    <div class="difficulty" id="diffSection">
+      <div class="difficulty" id="diffSection">
       <p class="label">DIFFICULTY</p>
       <div class="diff-btns" id="diffBtns"></div>
     </div>
@@ -211,7 +219,7 @@ let speedSaved = false
 
 // CTF state
 let ctfFlags = []
-let ctfTarget = 5
+function ctfTarget() { return parseInt(document.getElementById('ctfTargetInput').value) || 5 }
 let ctfWinner = null
 let ctfRespawnTimers = [0, 0]
 let ctfEncircleCooldown = [-1, -1]
@@ -555,7 +563,7 @@ function tickCTF() {
   // Phase 7: win check
   players.forEach((pl, i) => {
     if (ctfWinner !== null) return
-    if (pl.score >= ctfTarget) {
+    if (pl.score >= ctfTarget()) {
       ctfWinner = i; started = false
       infoEl.innerHTML = `<p class="game-over">P${i+1} 獲勝!</p><p style="font-size:13px">P1: ${players[0].score} | P2: ${players[1].score}</p><p style="margin-top:6px">Press <kbd>Space</kbd> to restart</p>`
     }
@@ -606,7 +614,7 @@ function updateUI() {
     const flags1 = ctfFlags.filter(f => f.carriedBy === 1).length
     scoreRow.innerHTML = `
       <div class="score-item"><p class="label">P2 🏴${flags1}</p><p class="value">${players[1]?.score ?? 0}</p></div>
-      <div class="score-item"><p class="label">目標</p><p class="value" style="font-size:22px">${ctfTarget}</p></div>
+      <div class="score-item"><p class="label">目標</p><p class="value" style="font-size:22px">${ctfTarget()}</p></div>
       <div class="score-item"><p class="label">P1 🏴${flags0}</p><p class="value">${players[0]?.score ?? 0}</p></div>
     `
   } else {
@@ -626,6 +634,7 @@ function switchMode(m) {
   mode = m
   modeSelect.value = m
   diffSection.classList.toggle('hidden', m !== 'single')
+  ctfTargetSection.classList.toggle('show', m === 'ctf')
   const dualMode = m === 'dual' || m === 'ctf'
   controlsText.innerHTML = m === 'single' || m === 'free' || m === 'speed'
     ? '<kbd>&uarr;&darr;&larr;&rarr;</kbd>'
@@ -719,6 +728,7 @@ document.addEventListener('keydown', e => {
 // Build mode select
 const modeNames = { single: '單人', dual: '雙人', free: '自由', speed: '速度遞增', ctf: '奪旗戰' }
 const modeSelect = document.getElementById('modeSelect')
+const ctfTargetSection = document.getElementById('ctfTargetSection')
 Object.entries(modeNames).forEach(([v, label]) => {
   const opt = document.createElement('option'); opt.value = v; opt.textContent = label
   modeSelect.appendChild(opt)
