@@ -520,16 +520,13 @@ function tickCTF() {
         if (f.carriedBy !== i) return
         if (f.type === 'center') {
           pl.score++; f.carriedBy = null
-          setTimeout(() => { if (f.x === -1) { const p = randomFreePos(players[0]); f.x = p.x; f.y = p.y; renderAll() }}, 2000)
-          f.x = -1
+          const p = randomFreePos(players[0]); f.x = p.x; f.y = p.y; renderAll()
         } else if (f.owner !== i) {
           pl.score += 3; f.carriedBy = null
-          setTimeout(() => { if (f.x === -1) { const p = randomFreePos(players[0]); f.x = p.x; f.y = p.y; renderAll() }}, 8000)
-          f.x = -1
+          const base = CTF_BASES[f.owner]; f.x = base.x1 + 1; f.y = base.y1 + 1; renderAll()
         } else {
           pl.score++; f.carriedBy = null
-          setTimeout(() => { if (f.x === -1) { const p = randomFreePos(players[0]); f.x = p.x; f.y = p.y; renderAll() }}, 3000)
-          f.x = -1
+          const base = CTF_BASES[f.owner]; f.x = base.x1 + 1; f.y = base.y1 + 1; renderAll()
         }
       })
     }
@@ -562,7 +559,7 @@ function tickCTF() {
   players.forEach((pl, i) => {
     if (ctfWinner !== null) return
     if (pl.score >= ctfTarget) {
-      ctfWinner = i
+      ctfWinner = i; started = false
       infoEl.innerHTML = `<p class="game-over">P${i+1} 獲勝!</p><p style="font-size:13px">P1: ${players[0].score} | P2: ${players[1].score}</p><p style="margin-top:6px">Press <kbd>Space</kbd> to restart</p>`
     }
   })
@@ -579,11 +576,7 @@ function ctfDie(pl, pi) {
   ctfFlags.forEach(f => {
     if (f.carriedBy !== pi) return
     f.carriedBy = null
-    const pos = randomFreePos(players[0])
-    f.x = pos.x; f.y = pos.y
-    if (f.type === 'base') {
-      setTimeout(() => { if (f.carriedBy === null) { const p = randomFreePos(players[0]); f.x = p.x; f.y = p.y; renderAll() }}, 8000)
-    }
+    const pos = randomFreePos(players[0]); f.x = pos.x; f.y = pos.y
   })
 }
 

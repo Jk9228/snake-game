@@ -343,9 +343,6 @@ function ctfScatterFlags(pi: number) {
     f.carriedBy = null
     const pos = randomFreePos(players.value[0]!)
     f.x = pos.x; f.y = pos.y
-    if (f.type === 'base') {
-      setTimeout(() => { if (f.carriedBy === null) { const p = randomFreePos(players.value[0]!); f.x = p.x; f.y = p.y }}, 8000)
-    }
   })
 }
 
@@ -406,16 +403,13 @@ function tickCTF() {
         if (f.carriedBy !== i) return
         if (f.type === 'center') {
           pl.score++; f.carriedBy = null
-          setTimeout(() => { if (f.x === -1) { const p = randomFreePos(players.value[0]!); f.x = p.x; f.y = p.y }}, 2000)
-          f.x = -1
+          const p = randomFreePos(players.value[0]!); f.x = p.x; f.y = p.y
         } else if (f.owner !== i) {
           pl.score += 3; f.carriedBy = null
-          setTimeout(() => { if (f.x === -1) { const p = randomFreePos(players.value[0]!); f.x = p.x; f.y = p.y }}, 8000)
-          f.x = -1
+          const base = CTF_BASES[f.owner]!; f.x = base.x + 1; f.y = base.y + 1
         } else {
           pl.score++; f.carriedBy = null
-          setTimeout(() => { if (f.x === -1) { const p = randomFreePos(players.value[0]!); f.x = p.x; f.y = p.y }}, 3000)
-          f.x = -1
+          const base = CTF_BASES[f.owner]!; f.x = base.x + 1; f.y = base.y + 1
         }
       })
     }
@@ -446,7 +440,7 @@ function tickCTF() {
   players.value.forEach((pl, i) => {
     if (ctfWinner.value !== null) return
     if (pl.score >= ctfTarget) {
-      ctfWinner.value = i
+      ctfWinner.value = i; started.value = false
     }
   })
 
