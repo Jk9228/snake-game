@@ -259,6 +259,7 @@ function isOccupied(pl) {
       const opp = players[1 - players.indexOf(pl)]
       if (opp && opp.snake.some(s => s.x===x && s.y===y)) return true
       if (ctfFlags.some(f => f.x===x && f.y===y && f.carriedBy===null)) return true
+      if (CTF_BASES.some(b => x >= b.x && x < b.x + b.w && y >= b.y && y < b.y + b.h)) return true
     }
     return false
   }
@@ -531,7 +532,7 @@ function tickCTF() {
       ctfFlags.forEach(f => {
         if (f.carriedBy !== i) return
         if (f.type === 'center') { total++; f.carriedBy = null; const p = randomFreePos(players[0]); f.x = p.x; f.y = p.y }
-        else { total += f.owner !== i ? 3 : 1; f.carriedBy = null; const base = CTF_BASES[f.owner]; f.x = base.x1 + 1; f.y = base.y1 + 1 }
+        else { total += f.owner !== i ? 3 : 1; f.carriedBy = null; const base = CTF_BASES[f.owner]; f.x = base.x + 1; f.y = base.y + 1 }
       })
       if (total) { pl.score += total; renderAll(); addScoreAnim('+'+total, next.x, next.y, i) }
     }

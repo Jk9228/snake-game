@@ -163,6 +163,7 @@ function isOccupied(pl: Player) {
       const opp = players.value[1 - players.value.indexOf(pl)]
       if (opp && opp.snake.some(s => s.x === x && s.y === y)) return true
       if (ctfFlags.value.some(f => f.x === x && f.y === y && f.carriedBy === null)) return true
+      if (CTF_BASES.some(b => x >= b.x && x < b.x + b.w && y >= b.y && y < b.y + b.h)) return true
     }
     return false
   }
