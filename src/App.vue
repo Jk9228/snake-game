@@ -369,7 +369,7 @@ function tick() {
           pl.score++
           pl.smoothFoods.splice(fi, 1)
           pl.foods.pop()
-          while (pl.foods.length < 20) pl.foods.push(randomFreePos(pl, true))
+          for (let i = 0; i < 2; i++) { if (pl.foods.length < 20) pl.foods.push(randomFreePos(pl, true)) }
           pl.smoothFoods = pl.foods.map(f => ({ x: f.x + 0.5, y: f.y + 0.5 }))
           ate = true
           break
