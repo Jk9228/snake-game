@@ -343,9 +343,7 @@ function tick() {
     if (obstacles.value.some(o => o.x === next.x && o.y === next.y)) { pl.gameOver = true; onGameOver(pl); return }
 
     pl.snake.unshift(next)
-    const ate = pl.foods.findIndex(f =>
-      mode.value === 'speed' ? Math.abs(f.x - next.x) <= 1 && Math.abs(f.y - next.y) <= 1 : f.x === next.x && f.y === next.y
-    )
+    const ate = pl.foods.findIndex(f => f.x === next.x && f.y === next.y)
     if (ate !== -1) {
       pl.score++
       pl.foods.splice(ate, 1)
@@ -357,15 +355,16 @@ function tick() {
   players.value.forEach(pl => {
     if (pl.gameOver) return
     const now = performance.now()
-    if (pl.magnetUntil > now || mode.value === 'magnet') {
+    if (pl.magnetUntil > now) {
       const head = pl.snake[0]!
       pl.foods.forEach(f => {
         const dx = head.x - f.x, dy = head.y - f.y
         if (dx === 0 && dy === 0) return
-        if (Math.abs(dx) <= 3 && Math.abs(dy) <= 3) {
-          const stepX = dx === 0 ? 0 : (dx > 0 ? 1 : -1)
-          const stepY = dy === 0 ? 0 : (dy > 0 ? 1 : -1)
-          const nx = f.x + stepX, ny = f.y + stepY
+        if (Math.abs(dx) <= 4 && Math.abs(dy) <= 4) {
+          const steps = Math.max(Math.abs(dx), Math.abs(dy)) > 2 ? 2 : 1
+          const sx = dx === 0 ? 0 : (dx > 0 ? 1 : -1) * Math.min(steps, Math.abs(dx))
+          const sy = dy === 0 ? 0 : (dy > 0 ? 1 : -1) * Math.min(steps, Math.abs(dy))
+          const nx = f.x + sx, ny = f.y + sy
           if (!pl.snake.some((s, si) => si > 0 && s.x === nx && s.y === ny) &&
               !obstacles.value.some(o => o.x === nx && o.y === ny) &&
               !pl.foods.some(other => other !== f && other.x === nx && other.y === ny)) {
