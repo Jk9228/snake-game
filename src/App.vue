@@ -99,6 +99,7 @@ interface PowerUp { x: number; y: number; type: 'magnet' }
 interface Player {
   snake: Pos[]
   foods: Pos[]
+  smoothFoods: Pos[]
   dir: Pos
   dirKey: string
   inputQueue: string[]
@@ -162,7 +163,7 @@ const gameOverRank = computed(() => {
 
 function makePlayer(startX: number, startY: number, dir: Pos): Player {
   const dirKey = posToKey(dir)
-  return { snake: [{ x: startX, y: startY }], foods: [], dir, dirKey, inputQueue: [], dirCooldown: 0, score: 0, gameOver: false, magnetUntil: 0, prevSnake: [{ x: startX, y: startY }] }
+  return { snake: [{ x: startX, y: startY }], foods: [], smoothFoods: [], dir, dirKey, inputQueue: [], dirCooldown: 0, score: 0, gameOver: false, magnetUntil: 0, prevSnake: [{ x: startX, y: startY }] }
 }
 
 function isOccupied(pl: Player, includePowerUps = false) {
@@ -194,12 +195,14 @@ function spawnFoods(pl: Player) {
   if (mode.value === 'free') n = getFreeFoodCount(pl.score)
   else n = mode.value === 'single' ? DIFFICULTIES[difficulty.value]!.foodCount : 1
   while (pl.foods.length < n) pl.foods.push(randomFreePos(pl, true))
+  if (mode.value === 'magnet') pl.smoothFoods = pl.foods.map(f => ({ x: f.x + 0.5, y: f.y + 0.5 }))
 }
 
 const powerUpTypes: PowerUp['type'][] = ['magnet']
 
 function spawnPowerUp(pl: Player) {
   if (!magnetPickups.value && mode.value !== 'magnet') return
+  if (mode.value === 'magnet') return
   if (Math.random() > 0.2) return
   if (powerUps.value.length >= 3) return
   const pos = randomFreePos(pl, true)
@@ -240,7 +243,7 @@ const cells = computed(() => {
       for (let x = 0; x < SIZE; x++) {
         const key = `${x},${y}`
         let cls = ''
-        if (foodSet.has(key)) cls = 'food'
+        if (mode.value !== 'magnet' && foodSet.has(key)) cls = 'food'
         else if (obstacleSet.has(key)) cls = 'obstacle'
         else if (powerUpSet.has(key)) cls = 'powerup'
         result.push({ cls })
@@ -354,51 +357,70 @@ function tick() {
 
     pl.prevSnake = pl.snake.map(s => ({ ...s }))
     pl.snake.unshift(next)
-    const ate = pl.foods.findIndex(f => f.x === next.x && f.y === next.y)
-    if (ate !== -1) {
-      pl.score++
-      pl.foods.splice(ate, 1)
-      spawnPowerUp(pl)
+    let ate = false
+    if (mode.value === 'magnet') {
+      const hc = next.x + 0.5, vc = next.y + 0.5
+      for (let fi = pl.smoothFoods.length - 1; fi >= 0; fi--) {
+        const sf = pl.smoothFoods[fi]!
+        const dx = hc - sf.x, dy = vc - sf.y
+        if (Math.sqrt(dx * dx + dy * dy) < 0.6) {
+          pl.score++
+          pl.smoothFoods.splice(fi, 1)
+          pl.foods.pop()
+          ate = true
+          break
+        }
+      }
     } else {
-      pl.snake.pop()
+      const gi = pl.foods.findIndex(f => f.x === next.x && f.y === next.y)
+      if (gi !== -1) {
+        pl.score++
+        pl.foods.splice(gi, 1)
+        spawnPowerUp(pl)
+        ate = true
+      }
     }
+    if (!ate) pl.snake.pop()
   })
   players.value.forEach(pl => {
     if (pl.gameOver) return
     const now = performance.now()
-    if (pl.magnetUntil > now) {
-      const head = pl.snake[0]!
-      pl.foods.forEach(f => {
-        const dx = head.x - f.x, dy = head.y - f.y
-        if (dx === 0 && dy === 0) return
-        if (Math.abs(dx) <= 4 && Math.abs(dy) <= 4) {
-          const steps = Math.max(Math.abs(dx), Math.abs(dy)) > 2 ? 2 : 1
-          const sx = dx === 0 ? 0 : (dx > 0 ? 1 : -1) * Math.min(steps, Math.abs(dx))
-          const sy = dy === 0 ? 0 : (dy > 0 ? 1 : -1) * Math.min(steps, Math.abs(dy))
-          const nx = f.x + sx, ny = f.y + sy
-          if (!pl.snake.some((s, si) => si > 0 && s.x === nx && s.y === ny) &&
-              !obstacles.value.some(o => o.x === nx && o.y === ny) &&
-              !pl.foods.some(other => other !== f && other.x === nx && other.y === ny)) {
-            f.x = nx; f.y = ny
+    if (mode.value !== 'magnet') {
+      if (pl.magnetUntil > now) {
+        const head = pl.snake[0]!
+        pl.foods.forEach(f => {
+          const dx = head.x - f.x, dy = head.y - f.y
+          if (dx === 0 && dy === 0) return
+          if (Math.abs(dx) <= 4 && Math.abs(dy) <= 4) {
+            const steps = Math.max(Math.abs(dx), Math.abs(dy)) > 2 ? 2 : 1
+            const sx = dx === 0 ? 0 : (dx > 0 ? 1 : -1) * Math.min(steps, Math.abs(dx))
+            const sy = dy === 0 ? 0 : (dy > 0 ? 1 : -1) * Math.min(steps, Math.abs(dy))
+            const nx = f.x + sx, ny = f.y + sy
+            if (!pl.snake.some((s, si) => si > 0 && s.x === nx && s.y === ny) &&
+                !obstacles.value.some(o => o.x === nx && o.y === ny) &&
+                !pl.foods.some(other => other !== f && other.x === nx && other.y === ny)) {
+              f.x = nx; f.y = ny
+            }
+          }
+        })
+        for (let fi = pl.foods.length - 1; fi >= 0; fi--) {
+          if (pl.foods[fi]!.x === head.x && pl.foods[fi]!.y === head.y) {
+            pl.score++
+            pl.foods.splice(fi, 1)
           }
         }
-      })
-      // eat any food now on head
-      for (let fi = pl.foods.length - 1; fi >= 0; fi--) {
-        if (pl.foods[fi]!.x === head.x && pl.foods[fi]!.y === head.y) {
-          pl.score++
-          pl.foods.splice(fi, 1)
-        }
+      } else if (pl.magnetUntil > 0) {
+        pl.magnetUntil = 0
       }
-    } else if (pl.magnetUntil > 0) {
-      pl.magnetUntil = 0
     }
-    const head = pl.snake[0]!
-    const pi = powerUps.value.findIndex(p => p.x === head.x && p.y === head.y)
-    if (pi !== -1) {
-      const pu = powerUps.value[pi]!
-      if (pu.type === 'magnet') pl.magnetUntil = now + 5000
-      powerUps.value.splice(pi, 1)
+    if (mode.value !== 'magnet') {
+      const head = pl.snake[0]!
+      const pi = powerUps.value.findIndex(p => p.x === head.x && p.y === head.y)
+      if (pi !== -1) {
+        const pu = powerUps.value[pi]!
+        if (pu.type === 'magnet') pl.magnetUntil = now + 5000
+        powerUps.value.splice(pi, 1)
+      }
     }
   })
   players.value.forEach(pl => {
@@ -591,12 +613,37 @@ function updateSegmentPositions() {
         }
       }
     })
+    if (mode.value === 'magnet') {
+      const foods = container.querySelectorAll<HTMLElement>('.magnet-food')
+      pl.smoothFoods.forEach((f, i) => {
+        const el = foods[i]
+        if (el) el.style.transform = `translate(${f.x * 25 - 12.5}px, ${f.y * 25 - 12.5}px)`
+      })
+    }
   })
 }
 
 function rafLoop(time: number) {
   if (started.value && lastTick > 0) {
     visualProgress = Math.min((time - lastTick) / curInt, 1)
+    if (mode.value === 'magnet') {
+      players.value.forEach(pl => {
+        if (pl.gameOver) return
+        const head = pl.snake[0]!
+        const hc = head.x + 0.5, vc = head.y + 0.5
+        pl.smoothFoods.forEach(f => {
+          const dx = hc - f.x, dy = vc - f.y
+          const dist = Math.sqrt(dx * dx + dy * dy)
+          if (dist > 0.01) {
+            const speed = Math.max(dist * 0.08, 0.2)
+            const nx = f.x + (dx / dist) * speed
+            const ny = f.y + (dy / dist) * speed
+            f.x = Math.max(0, Math.min(SIZE, nx))
+            f.y = Math.max(0, Math.min(SIZE, ny))
+          }
+        })
+      })
+    }
     updateSegmentPositions()
   }
   rafId = requestAnimationFrame(rafLoop)
@@ -661,7 +708,7 @@ onUnmounted(() => {
               :class="['snake-seg', 'p'+(bi === 0 ? 1 : 0), { head: seg.head, 'magnet-active': seg.magnet }]"
               :style="seg.style"
             ><template v-if="seg.head"><div class="eye" :style="eyeStyle(seg.dirKey!, 0)" /><div class="eye" :style="eyeStyle(seg.dirKey!, 1)" /></template></div>
-            </div>
+          </div>
           </div>
         </div>
         <div v-else class="board-wrapper">
@@ -675,6 +722,7 @@ onUnmounted(() => {
               :class="['snake-seg', 'p'+bi, { head: seg.head, 'magnet-active': seg.magnet }]"
               :style="seg.style"
             ><template v-if="seg.head"><div class="eye" :style="eyeStyle(seg.dirKey!, 0)" /><div class="eye" :style="eyeStyle(seg.dirKey!, 1)" /></template></div>
+            <div v-if="mode === 'magnet'" v-for="(f, i) in players[bi]?.smoothFoods ?? []" :key="'mf'+i" class="magnet-food" />
           </div>
         </div>
       </template>
@@ -801,6 +849,7 @@ body{display:flex;justify-content:center;align-items:center;min-height:100vh;bac
 .board{display:grid;grid-template-columns:repeat(20,25px);grid-template-rows:repeat(20,25px)}
 .cell{width:25px;height:25px;box-shadow:inset 0 0 0 1px #1a1a3e}
 .cell.food{background:#f87171;box-shadow:none;border-radius:50%;animation:pulse .8s ease-in-out infinite alternate}
+.magnet-food{position:absolute;width:25px;height:25px;border-radius:50%;background:#f87171;box-shadow:0 0 12px #f87171;z-index:5;animation:pulse .8s ease-in-out infinite alternate}
 .cell.obstacle{background:#5b21b6;box-shadow:none;border-radius:2px}
 .snake-container{position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none}
 .snake-seg{position:absolute;width:27px;height:27px;border-radius:50%}
