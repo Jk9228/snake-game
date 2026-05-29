@@ -369,6 +369,8 @@ function tick() {
           pl.score++
           pl.smoothFoods.splice(fi, 1)
           pl.foods.pop()
+          for (let i = 0; i < 2; i++) pl.foods.push(randomFreePos(pl, true))
+          pl.smoothFoods = pl.foods.map(f => ({ x: f.x + 0.5, y: f.y + 0.5 }))
           ate = true
           break
         }
@@ -630,11 +632,14 @@ function rafLoop(time: number) {
           const dx = hc - f.x, dy = vc - f.y
           const dist = Math.sqrt(dx * dx + dy * dy)
           if (dist > 0.01) {
-            const speed = Math.min(dist * 0.04, 0.25)
+            const speed = Math.min(dist * 0.02, 0.08)
             const nx = f.x + (dx / dist) * speed
             const ny = f.y + (dy / dist) * speed
-            f.x = Math.max(0, Math.min(SIZE, nx))
-            f.y = Math.max(0, Math.min(SIZE, ny))
+            const onBody = pl.snake.some((s, si) => si > 0 && Math.abs(nx - (s.x + 0.5)) < 0.4 && Math.abs(ny - (s.y + 0.5)) < 0.4)
+            if (!onBody) {
+              f.x = Math.max(0, Math.min(SIZE, nx))
+              f.y = Math.max(0, Math.min(SIZE, ny))
+            }
           }
         })
       })
