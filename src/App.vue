@@ -151,6 +151,11 @@ function isOccupied(pl: Player) {
     if (pl.snake.some(s => s.x === x && s.y === y)) return true
     if (pl.foods.some(f => f.x === x && f.y === y)) return true
     if (obstacles.value.some(o => o.x === x && o.y === y)) return true
+    if (mode.value === 'ctf') {
+      const opp = players.value[1 - players.value.indexOf(pl)]
+      if (opp && opp.snake.some(s => s.x === x && s.y === y)) return true
+      if (ctfFlags.value.some(f => f.x === x && f.y === y && f.carriedBy === null)) return true
+    }
     return false
   }
 }
@@ -339,8 +344,7 @@ function ctfScatterFlags(pi: number) {
     const pos = randomFreePos(players.value[0]!)
     f.x = pos.x; f.y = pos.y
     if (f.type === 'base') {
-      const sx = f.owner === 0 ? 1 : 18, sy = f.owner === 0 ? 18 : 1
-      setTimeout(() => { const ff = ctfFlags.value.find(ff => ff.owner === f.owner && ff.type === 'base'); if (ff) { ff.x = sx; ff.y = sy; } }, 8000)
+      setTimeout(() => { if (f.carriedBy === null) { const p = randomFreePos(players.value[0]!); f.x = p.x; f.y = p.y }}, 8000)
     }
   })
 }
@@ -403,8 +407,7 @@ function tickCTF() {
           f.x = -1
         } else if (f.owner !== i) {
           pl.score += 3; f.carriedBy = null
-          const sx = f.owner === 0 ? 1 : 18, sy = f.owner === 0 ? 18 : 1
-          setTimeout(() => { if (f.x === -1) { f.x = sx; f.y = sy }}, 8000)
+          setTimeout(() => { if (f.x === -1) { const p = randomFreePos(players.value[0]!); f.x = p.x; f.y = p.y }}, 8000)
           f.x = -1
         }
       })

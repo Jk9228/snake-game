@@ -242,6 +242,11 @@ function isOccupied(pl) {
     if (pl.snake.some(s => s.x===x && s.y===y)) return true
     if (pl.foods.some(f => f.x===x && f.y===y)) return true
     if (obstacles.some(o => o.x===x && o.y===y)) return true
+    if (mode === 'ctf') {
+      const opp = players[1 - players.indexOf(pl)]
+      if (opp && opp.snake.some(s => s.x===x && s.y===y)) return true
+      if (ctfFlags.some(f => f.x===x && f.y===y && f.carriedBy===null)) return true
+    }
     return false
   }
 }
@@ -514,9 +519,7 @@ function tickCTF() {
           f.x = -1
         } else if (f.owner !== i) {
           pl.score += 3; f.carriedBy = null
-          const base = CTF_BASES[f.owner]
-          const sx = f.owner === 0 ? 1 : 18, sy = f.owner === 0 ? 18 : 1
-          setTimeout(() => { if (f.x === -1) { f.x = sx; f.y = sy; renderAll() }}, 8000)
+          setTimeout(() => { if (f.x === -1) { const p = randomFreePos(players[0]); f.x = p.x; f.y = p.y; renderAll() }}, 8000)
           f.x = -1
         }
       })
@@ -571,8 +574,7 @@ function ctfDie(pl, pi) {
     const pos = randomFreePos(players[0])
     f.x = pos.x; f.y = pos.y
     if (f.type === 'base') {
-      const sx = f.owner === 0 ? 1 : 18, sy = f.owner === 0 ? 18 : 1
-      setTimeout(() => { f.x = sx; f.y = sy; renderAll() }, 8000)
+      setTimeout(() => { if (f.carriedBy === null) { const p = randomFreePos(players[0]); f.x = p.x; f.y = p.y; renderAll() }}, 8000)
     }
   })
 }
