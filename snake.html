@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Snake Game</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{display:flex;justify-content:center;align-items:center;min-height:100vh;background:#1a1a2e;font-family:'Segoe UI',system-ui,sans-serif}
+.game-container{display:flex;align-items:flex-start;gap:36px;padding:24px;background:#16213e;border-radius:16px;box-shadow:0 8px 32px rgba(0,0,0,.4)}
+.board-wrapper{position:relative;border:3px solid #0f3460;border-radius:8px;overflow:hidden;background:#0a0a23}
+.board{display:grid;grid-template-columns:repeat(20,25px);grid-template-rows:repeat(20,25px)}
+.cell{width:25px;height:25px;box-shadow:inset 0 0 0 1px #1a1a3e}
+.cell.food{background:#f87171;box-shadow:none;border-radius:50%;animation:pulse .8s ease-in-out infinite alternate}
+.snake-container{position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none}
+.snake-seg{position:absolute;width:25px;height:25px;background:#4ade80}
+.snake-seg.head{background:#22c55e}
+@keyframes pulse{from{transform:scale(.8)}to{transform:scale(1)}}
+.boards{display:flex;gap:24px}
+.player-panel{display:flex;flex-direction:column;align-items:center;gap:8px}
+.player-label{font-size:13px;font-weight:700;color:#e94560;letter-spacing:2px}
+.player-label kbd{font-size:11px;letter-spacing:0}
+.sidebar{display:flex;flex-direction:column;gap:12px;min-width:160px}
+h1{font-size:28px;font-weight:800;letter-spacing:6px;color:#e94560;text-align:center;text-shadow:0 0 20px rgba(233,69,96,.3)}
+.score-box{background:#0f3460;border:2px solid #1a1a4e;border-radius:12px;padding:10px 20px;text-align:center}
+.score-row{display:flex;gap:12px;justify-content:center}
+.score-item{text-align:center;min-width:60px}
+.score-item .label{font-size:10px}
+.score-item .value{font-size:28px}
+.label{font-size:11px;font-weight:600;letter-spacing:3px;color:#8899aa;margin-bottom:2px}
+.value{font-size:36px;font-weight:700;color:#e94560;line-height:1}
+.info{text-align:center;font-size:13px;color:#aabbcc;padding:10px;background:#0f3460;border-radius:12px;border:2px solid #1a1a4e}
+.game-over{font-size:18px;font-weight:700;color:#f87171;margin-bottom:4px}
+kbd{display:inline-block;padding:2px 7px;font-size:13px;font-family:inherit;background:#1a1a4e;border:1px solid #334466;border-radius:5px;color:#ccddee;margin:0 1px}
+.controls{text-align:center;padding:10px;background:#0f3460;border-radius:12px;border:2px solid #1a1a4e}
+.arrow-keys{font-size:18px;line-height:1.6;color:#ccddee}
+.mode-select{text-align:center;padding:10px;background:#0f3460;border-radius:12px;border:2px solid #1a1a4e}
+.mode-btns{display:flex;gap:6px;justify-content:center;margin-top:6px}
+.mode-btn{padding:5px 14px;font-size:12px;font-weight:600;font-family:inherit;background:#1a1a4e;border:2px solid #334466;border-radius:6px;color:#8899aa;cursor:pointer;transition:all .15s}
+.mode-btn:hover{border-color:#e94560;color:#ccddee}
+.mode-btn.active{border-color:#e94560;background:#e94560;color:#fff}
+.difficulty{text-align:center;padding:10px;background:#0f3460;border-radius:12px;border:2px solid #1a1a4e}
+.diff-btns{display:flex;flex-wrap:wrap;gap:6px;justify-content:center;margin-top:6px}
+.diff-btn{padding:5px 12px;font-size:12px;font-weight:600;font-family:inherit;background:#1a1a4e;border:2px solid #334466;border-radius:6px;color:#8899aa;cursor:pointer;transition:all .15s}
+.diff-btn:hover{border-color:#e94560;color:#ccddee}
+.diff-btn.active{border-color:#e94560;background:#e94560;color:#fff}
+.hidden{display:none}
+</style>
+</head>
+<body>
+<div class="game-container">
+  <div class="boards" id="boardsContainer"></div>
+  <div class="sidebar">
+    <h1>SNAKE</h1>
+    <div class="mode-select">
+      <p class="label">MODE</p>
+      <div class="mode-btns" id="modeBtns"></div>
+    </div>
+    <div class="difficulty" id="diffSection">
+      <p class="label">DIFFICULTY</p>
+      <div class="diff-btns" id="diffBtns"></div>
+    </div>
+    <div class="score-box" id="scoreSection">
+      <p class="label">SCORE</p>
+      <p class="value" id="scoreDisplay">0</p>
+      <div class="score-row hidden" id="scoreRow"></div>
+    </div>
+    <div class="info" id="info"><p>Press <kbd>Space</kbd> to start</p></div>
+    <div class="controls">
+      <p class="label">CONTROLS</p>
+      <p class="arrow-keys" id="controlsText"><kbd>&uarr;&darr;&larr;&rarr;</kbd></p>
+    </div>
+  </div>
+</div>
+
+<script>
+const SIZE = 20
+
+const DIFFICULTIES = {
+  easy:{label:'簡單',foodCount:1,hasObstacles:false},
+  normal:{label:'普通',foodCount:2,hasObstacles:false},
+  hard:{label:'困難',foodCount:3,hasObstacles:false},
+  hell:{label:'地獄',foodCount:3,hasObstacles:true},
+}
+
+const DIR = { UP:{x:0,y:-1}, DOWN:{x:0,y:1}, LEFT:{x:-1,y:0}, RIGHT:{x:1,y:0} }
+
+function getFreeSpeed(score) { return Math.max(120 - Math.floor(score / 20) * 5, 40) }
+function getFreeFoodCount(score) { return 1 + Math.floor(score / 30) }
+function getFreeObstacleCount(score) { return score >= 60 ? 1 + Math.floor((score - 60) / 20) : 0 }
+
+// DOM refs
+const boardsContainer = document.getElementById('boardsContainer')
+const modeBtns = document.getElementById('modeBtns')
+const diffBtns = document.getElementById('diffBtns')
+const diffSection = document.getElementById('diffSection')
+const scoreSection = document.getElementById('scoreSection')
+const scoreDisplay = document.getElementById('scoreDisplay')
+const scoreRow = document.getElementById('scoreRow')
+const infoEl = document.getElementById('info')
+const controlsText = document.getElementById('controlsText')
+
+let mode = 'single'
+let difficulty = 'easy'
+let players = []
+let obstacles = []
+let started = false
+let timer = null
+let lastTick = 0
+let curInt = 95
+let rafId = null
+
+function createBoardEl(parent) {
+  const board = document.createElement('div')
+  board.className = 'board'
+  for (let y = 0; y < SIZE; y++)
+    for (let x = 0; x < SIZE; x++) {
+      const cell = document.createElement('div')
+      cell.className = 'cell'; cell.dataset.x = x; cell.dataset.y = y
+      board.appendChild(cell)
+    }
+  parent.appendChild(board)
+  return board
+}
+
+function getCell(board, x, y) {
+  return board.querySelector(`[data-x="${x}"][data-y="${y}"]`)
+}
+
+function makePlayer(startX, startY, dir) {
+  return {
+    snake:[{x:startX,y:startY}],
+    foods:[],
+    dir, nextDir:dir,
+    score:0, gameOver:false,
+  }
+}
+
+function isOccupied(pl) {
+  return (x, y) => {
+    if (pl.snake.some(s => s.x===x && s.y===y)) return true
+    if (pl.foods.some(f => f.x===x && f.y===y)) return true
+    if (obstacles.some(o => o.x===x && o.y===y)) return true
+    return false
+  }
+}
+
+function randomFreePos(pl) {
+  const occ = isOccupied(pl)
+  let pos
+  do { pos = {x:Math.floor(Math.random()*SIZE), y:Math.floor(Math.random()*SIZE)} }
+  while (occ(pos.x, pos.y))
+  return pos
+}
+
+function spawnFoods(pl) {
+  let n
+  if (mode === 'free') n = getFreeFoodCount(pl.score)
+  else n = mode === 'single' ? DIFFICULTIES[difficulty].foodCount : 1
+  while (pl.foods.length < n) pl.foods.push(randomFreePos(pl))
+}
+
+function generateObstacles(pl) {
+  obstacles = []
+  const hellMode = mode === 'single' && DIFFICULTIES[difficulty].hasObstacles
+  if (!hellMode && mode !== 'free') return
+  const head = pl.snake[0]
+  const ahead = new Set()
+  const perpX = -pl.dir.y, perpY = pl.dir.x
+  for (let fwd = 1; fwd <= 3; fwd++)
+    for (let lat = -1; lat <= 1; lat++) {
+      const ax = head.x + pl.dir.x * fwd + perpX * lat
+      const ay = head.y + pl.dir.y * fwd + perpY * lat
+      if (ax >= 0 && ax < SIZE && ay >= 0 && ay < SIZE) ahead.add(`${ax},${ay}`)
+    }
+  const count = mode === 'free' ? getFreeObstacleCount(pl.score) : 3 + Math.floor(Math.random() * 3)
+  for (let i = 0; i < count; i++) {
+    let pos
+    do { pos = {x:Math.floor(Math.random()*SIZE), y:Math.floor(Math.random()*SIZE)} }
+    while (isOccupied(pl)(pos.x, pos.y) || ahead.has(`${pos.x},${pos.y}`) || obstacles.some(o => o.x===pos.x && o.y===pos.y))
+    obstacles.push(pos)
+  }
+}
+
+function renderPlayer(pl, boardEl) {
+  for (let y = 0; y < SIZE; y++)
+    for (let x = 0; x < SIZE; x++) getCell(boardEl, x, y).className = 'cell'
+  pl.foods.forEach(f => getCell(boardEl, f.x, f.y).classList.add('food'))
+  obstacles.forEach(o => getCell(boardEl, o.x, o.y).classList.add('obstacle'))
+
+  const wr = boardEl.parentElement
+  let c = wr.querySelector('.snake-container')
+  if (!c) { c = document.createElement('div'); c.className = 'snake-container'; wr.appendChild(c) }
+  while (c.children.length < pl.snake.length) { const s = document.createElement('div'); s.className = 'snake-seg'; c.appendChild(s) }
+  while (c.children.length > pl.snake.length) c.removeChild(c.lastChild)
+  for (let i = 0; i < pl.snake.length; i++) {
+    c.children[i].className = 'snake-seg' + (i === 0 ? ' head' : '')
+    const seg = pl.snake[i]
+    c.children[i].style.transform = `translate(${seg.x * 25}px,${seg.y * 25}px)`
+  }
+}
+
+function renderAll() {
+  players.forEach((pl, i) => renderPlayer(pl, pl.boardEl))
+}
+
+function rafRender(time) {
+  if (started && lastTick > 0) {
+    const progress = Math.min((time - lastTick) / curInt, 1)
+    players.forEach(pl => {
+      if (pl.gameOver || pl.snake.length === 0) return
+      const c = pl.boardEl.parentElement.querySelector('.snake-container')
+      if (!c) return
+      for (let i = 0; i < pl.snake.length; i++) {
+        const seg = pl.snake[i]
+        let dx = 0, dy = 0
+        if (i === 0) { dx = pl.dir.x; dy = pl.dir.y }
+        else { dx = pl.snake[i-1].x - seg.x; dy = pl.snake[i-1].y - seg.y }
+        c.children[i].style.transform = `translate(${(seg.x + dx * progress) * 25}px,${(seg.y + dy * progress) * 25}px)`
+      }
+    })
+  }
+  rafId = requestAnimationFrame(rafRender)
+}
+
+function reset() {
+  if (timer) clearTimeout(timer)
+  started = false
+  const boardEls = players.map(p => p.boardEl)
+  if (mode === 'single') {
+    players = [makePlayer(10, 10, DIR.RIGHT)]
+  } else {
+    players = [
+      makePlayer(5, 10, DIR.RIGHT),
+      makePlayer(14, 10, DIR.LEFT),
+    ]
+  }
+  players.forEach((pl, i) => { pl.boardEl = boardEls[i]; pl.gameOver=false; pl.score=0; spawnFoods(pl) })
+  if ((mode === 'single' && DIFFICULTIES[difficulty].hasObstacles) || mode === 'free') generateObstacles(players[0])
+  updateUI()
+  renderAll()
+  infoEl.innerHTML = '<p>Press <kbd>Space</kbd> to start</p>'
+}
+
+function start() {
+  started = true
+  lastTick = performance.now()
+  infoEl.innerHTML = ''
+  tick()
+}
+
+function tick() {
+  if (players.every(p => p.gameOver)) { started=false; return }
+  players.forEach(pl => {
+    if (pl.gameOver) return
+    const head = pl.snake[0]
+    const next = {x:head.x+pl.dir.x, y:head.y+pl.dir.y}
+
+    if (next.x<0||next.x>=SIZE||next.y<0||next.y>=SIZE) { pl.gameOver=true; return }
+    if (pl.snake.some(s => s.x===next.x&&s.y===next.y)) { pl.gameOver=true; return }
+
+    pl.snake.unshift(next)
+    const ate = pl.foods.findIndex(f => f.x===next.x&&f.y===next.y)
+    if (ate !== -1) {
+      pl.score++
+      pl.foods.splice(ate, 1)
+    } else {
+      pl.snake.pop()
+    }
+  })
+  players.forEach(pl => {
+    if (pl.gameOver) return
+    if (pl.foods.length > 0) return
+    if ((mode === 'single' && DIFFICULTIES[difficulty].hasObstacles) || mode === 'free') generateObstacles(pl)
+    spawnFoods(pl)
+  })
+  renderAll()
+  updateUI()
+  lastTick = performance.now()
+  curInt = mode === 'free' ? getFreeSpeed(players[0].score) : 95
+  timer = setTimeout(tick, curInt)
+}
+
+function updateUI() {
+  if (mode === 'single' || mode === 'free') {
+    scoreDisplay.textContent = players[0].score
+    scoreDisplay.classList.remove('hidden')
+    scoreRow.classList.add('hidden')
+  } else {
+    scoreDisplay.classList.add('hidden')
+    scoreRow.classList.remove('hidden')
+    scoreRow.innerHTML = [
+      { label: 'P2', score: players[1].score },
+      { label: 'P1', score: players[0].score },
+    ].map(item =>
+      `<div class="score-item"><p class="label">${item.label}</p><p class="value">${item.score}</p></div>`
+    ).join('')
+  }
+}
+
+function switchMode(m) {
+  if (timer) clearTimeout(timer)
+  mode = m
+  document.querySelectorAll('.mode-btn').forEach(b => b.classList.toggle('active', b.dataset.mode === m))
+  diffSection.classList.toggle('hidden', m !== 'single')
+  controlsText.innerHTML = m === 'single' || m === 'free'
+    ? '<kbd>&uarr;&darr;&larr;&rarr;</kbd>'
+    : '<kbd>&uarr;&darr;&larr;&rarr;</kbd>  <kbd>W A S D</kbd>'
+
+  boardsContainer.innerHTML = ''
+  if (m === 'single' || m === 'free') {
+    const wrapper = document.createElement('div')
+    wrapper.className = 'board-wrapper'
+    const board = createBoardEl(wrapper)
+    boardsContainer.appendChild(wrapper)
+    players = [makePlayer(10, 10, DIR.RIGHT)]
+    players[0].boardEl = board
+  } else {
+    const p1 = makePlayer(5, 10, DIR.RIGHT)
+    const p2 = makePlayer(14, 10, DIR.LEFT)
+    players = [p1, p2]
+    // Left panel: P2 (WASD), Right panel: P1 (arrows)
+    const order = [1, 0]
+    order.forEach(pi => {
+      const panel = document.createElement('div')
+      panel.className = 'player-panel'
+      const label = document.createElement('div')
+      label.className = 'player-label'
+      label.innerHTML = `P${pi+1} ${pi===0 ? '<kbd>&uarr;&darr;&larr;&rarr;</kbd>' : '<kbd>W A S D</kbd>'}`
+      const wrapper = document.createElement('div')
+      wrapper.className = 'board-wrapper'
+      const board = createBoardEl(wrapper)
+      panel.appendChild(label)
+      panel.appendChild(wrapper)
+      boardsContainer.appendChild(panel)
+      players[pi].boardEl = board
+    })
+  }
+  reset()
+}
+
+// Key handling
+document.addEventListener('keydown', e => {
+  if (e.key === ' ') {
+    e.preventDefault()
+    if (started || players.some(p => p.gameOver)) { reset(); return }
+    start()
+    return
+  }
+
+  if (mode === 'single') {
+    const map = {ArrowUp:DIR.UP, ArrowDown:DIR.DOWN, ArrowLeft:DIR.LEFT, ArrowRight:DIR.RIGHT}
+    const nd = map[e.key]
+    if (nd) {
+      e.preventDefault()
+      if (nd.x + players[0].dir.x !== 0 || nd.y + players[0].dir.y !== 0) { players[0].dir = nd; players[0].nextDir = nd }
+    }
+  } else {
+    // P1: arrows
+    const map1 = {ArrowUp:DIR.UP, ArrowDown:DIR.DOWN, ArrowLeft:DIR.LEFT, ArrowRight:DIR.RIGHT}
+    const nd1 = map1[e.key]
+    if (nd1) {
+      e.preventDefault()
+      if (!players[0].gameOver && (nd1.x + players[0].dir.x !== 0 || nd1.y + players[0].dir.y !== 0)) { players[0].dir = nd1; players[0].nextDir = nd1 }
+    }
+    // P2: WASD
+    const map2 = {KeyW:DIR.UP, KeyS:DIR.DOWN, KeyA:DIR.LEFT, KeyD:DIR.RIGHT}
+    const nd2 = map2[e.code]
+    if (nd2) {
+      e.preventDefault()
+      if (players[1] && !players[1].gameOver && (nd2.x + players[1].dir.x !== 0 || nd2.y + players[1].dir.y !== 0)) { players[1].dir = nd2; players[1].nextDir = nd2 }
+    }
+  }
+})
+
+// Build mode buttons
+;['single','dual','free'].forEach(m => {
+  const btn = document.createElement('button')
+  btn.className = 'mode-btn'; btn.dataset.mode = m
+  btn.textContent = m === 'single' ? '單人' : m === 'dual' ? '雙人' : '自由'
+  btn.addEventListener('click', () => switchMode(m))
+  modeBtns.appendChild(btn)
+})
+
+// Build difficulty buttons
+Object.entries(DIFFICULTIES).forEach(([key, cfg]) => {
+  const btn = document.createElement('button')
+  btn.className = 'diff-btn'; btn.dataset.diff = key; btn.textContent = cfg.label
+  btn.addEventListener('click', () => { difficulty=key; document.querySelectorAll('.diff-btn').forEach(b=>b.classList.toggle('active',b.dataset.diff===key)); reset() })
+  diffBtns.appendChild(btn)
+})
+
+switchMode('single')
+rafRender()
+</script>
+</body>
+</html>
