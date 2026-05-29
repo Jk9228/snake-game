@@ -357,6 +357,9 @@ function tick() {
     if (next.x < 0 || next.x >= SIZE || next.y < 0 || next.y >= SIZE) {
       if (pl.outOfBounds > 0) { pl.gameOver = true; onGameOver(pl); return }
       pl.outOfBounds = performance.now()
+      pl.prevSnake = pl.snake.map(s => ({ ...s }))
+      pl.snake.unshift(next)
+      pl.snake.pop()
       return
     }
     pl.outOfBounds = 0
