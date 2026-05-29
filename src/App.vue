@@ -36,6 +36,28 @@ function getSpeedSpeed(score: number) {
 }
 function getSpeedObstacles(score: number) { return getSpeedSpeed(score) <= 110 }
 
+interface CTFFlag { x: number; y: number; type: 'center' | 'base'; carriedBy: number | null; owner: number }
+
+const CTF_BASES = [
+  { x: 0, y: 17, w: 3, h: 3 },
+  { x: 17, y: 0, w: 3, h: 3 },
+]
+
+function initCTFFlags(): CTFFlag[] {
+  return [
+    { x: 9, y: 9, type: 'center', carriedBy: null, owner: -1 },
+    { x: 10, y: 9, type: 'center', carriedBy: null, owner: -1 },
+    { x: 9, y: 10, type: 'center', carriedBy: null, owner: -1 },
+    { x: 1, y: 18, type: 'base', carriedBy: null, owner: 0 },
+    { x: 18, y: 1, type: 'base', carriedBy: null, owner: 1 },
+  ]
+}
+
+function isInBase(px: number, py: number, baseIdx: number) {
+  const b = CTF_BASES[baseIdx]!
+  return px >= b.x && px < b.x + b.w && py >= b.y && py < b.y + b.h
+}
+
 interface LBEntry { score: number; timestamp: number; duration: number; speed: number }
 function loadLeaderboard(): LBEntry[] {
   try { return JSON.parse(localStorage.getItem('snake_speed_lb') || '[]') }
@@ -52,6 +74,17 @@ function getRank(score: number): number {
   const lb = loadLeaderboard()
   for (let i = 0; i < lb.length; i++) { if (score > lb[i]!.score) return i + 1 }
   return lb.length + 1
+}
+
+function encircleCheck(snakeA: Pos[], snakeB: Pos[], headB: Pos): boolean {
+  const dirs = [{ x: 0, y: -1 }, { x: 0, y: 1 }, { x: -1, y: 0 }, { x: 1, y: 0 }]
+  for (const d of dirs) {
+    const nx = headB.x + d.x, ny = headB.y + d.y
+    if (nx < 0 || nx >= SIZE || ny < 0 || ny >= SIZE) continue
+    if (snakeA.some(s => s.x === nx && s.y === ny)) continue
+    return false
+  }
+  return true
 }
 
 const DIFFICULTIES: Record<string, { label: string; foodCount: number; hasObstacles: boolean }> = {
@@ -72,7 +105,7 @@ interface Player {
   gameOver: boolean
 }
 
-const mode = ref<'single' | 'dual' | 'free' | 'speed'>('single')
+const mode = ref<'single' | 'dual' | 'free' | 'speed' | 'ctf'>('single')
 const difficulty = ref<string>('easy')
 const players = ref<Player[]>([])
 const obstacles = ref<Pos[]>([])
@@ -86,6 +119,13 @@ let timer: ReturnType<typeof setTimeout> | null = null
 let speedStartTime: number | null = null
 let speedMaxSpeed = 150
 let speedSaved = false
+
+// CTF state
+const ctfFlags = ref<CTFFlag[]>([])
+const ctfTarget = 5
+const ctfWinner = ref<number | null>(null)
+const ctfRespawnTimers = ref<number[]>([-1, -1])
+const ctfEncircleCooldown = ref<number[]>([-1, -1])
 
 const leaderboard = computed(() => loadLeaderboard())
 
@@ -178,6 +218,33 @@ function eyeStyle(dirKey: string, which: number) {
   return `left:${pos[0]! - 2.5}px;top:${pos[1]! - 2.5}px`
 }
 
+const ctfCells = computed(() => {
+  const result: { cls: string }[] = []
+  const flagMap = new Map<string, string>()
+  ctfFlags.value.forEach(f => {
+    if (f.carriedBy !== null) return
+    flagMap.set(`${f.x},${f.y}`, f.type === 'center' ? 'flag' : f.owner === 0 ? 'flag-p0' : 'flag-p1')
+  })
+  const baseMap = new Map<string, string>()
+  CTF_BASES.forEach((b, bi) => {
+    for (let dy = 0; dy < b.h; dy++)
+      for (let dx = 0; dx < b.w; dx++)
+        baseMap.set(`${b.x + dx},${b.y + dy}`, bi === 0 ? 'base-p0' : 'base-p1')
+  })
+  const obstacleSet = new Set(obstacles.value.map(o => `${o.x},${o.y}`))
+  for (let y = 0; y < SIZE; y++) {
+    for (let x = 0; x < SIZE; x++) {
+      const key = `${x},${y}`
+      let cls = ''
+      if (flagMap.has(key)) cls = flagMap.get(key)!
+      else if (obstacleSet.has(key)) cls = 'obstacle'
+      else if (baseMap.has(key)) cls = baseMap.get(key)!
+      result.push({ cls })
+    }
+  }
+  return result
+})
+
 const segmentStyles = computed(() => {
   return players.value.map(pl => {
     return pl.snake.map((seg, i) => {
@@ -196,12 +263,21 @@ function reset() {
   speedStartTime = null
   speedMaxSpeed = 150
   speedSaved = false
+  ctfWinner.value = null
+  ctfRespawnTimers.value = [-1, -1]
+  ctfEncircleCooldown.value = [-1, -1]
   if (mode.value === 'single' || mode.value === 'free' || mode.value === 'speed') {
     players.value = [makePlayer(10, 10, DIR.RIGHT)]
+  } else if (mode.value === 'ctf') {
+    players.value = [
+      makePlayer(1, 18, DIR.RIGHT),
+      makePlayer(18, 1, DIR.LEFT),
+    ]
+    ctfFlags.value = initCTFFlags()
   } else {
     players.value = [makePlayer(14, 10, DIR.LEFT), makePlayer(5, 10, DIR.RIGHT)]
   }
-  players.value.forEach(pl => { pl.gameOver = false; pl.score = 0; spawnFoods(pl) })
+  players.value.forEach(pl => { pl.gameOver = false; pl.score = 0; if (mode.value !== 'ctf') spawnFoods(pl) })
   if ((mode.value === 'single' && DIFFICULTIES[difficulty.value]!.hasObstacles) || mode.value === 'free') generateObstacles(players.value[0]!)
   if (mode.value === 'speed') generateObstacles(players.value[0]!)
 }
@@ -214,6 +290,7 @@ function start() {
 
 function tick() {
   if (players.value.every(p => p.gameOver)) { started.value = false; return }
+  if (mode.value === 'ctf') { tickCTF(); return }
   players.value.forEach(pl => {
     if (pl.gameOver) return
     if (pl.inputQueue.length > 0 && pl.dirCooldown <= 0) {
@@ -255,6 +332,107 @@ function tick() {
   timer = setTimeout(tick, curInt)
 }
 
+function ctfScatterFlags(pi: number) {
+  ctfFlags.value.forEach(f => {
+    if (f.carriedBy !== pi) return
+    f.carriedBy = null
+    const pos = randomFreePos(players.value[0]!)
+    f.x = pos.x; f.y = pos.y
+    if (f.type === 'base') {
+      const sx = f.owner === 0 ? 1 : 18, sy = f.owner === 0 ? 18 : 1
+      setTimeout(() => { const ff = ctfFlags.value.find(ff => ff.owner === f.owner && ff.type === 'base'); if (ff) { ff.x = sx; ff.y = sy; } }, 8000)
+    }
+  })
+}
+
+function tickCTF() {
+  const moves = players.value.map(pl => {
+    if (pl.gameOver) return null
+    const head = pl.snake[0]!
+    return { x: head.x + pl.dir.x, y: head.y + pl.dir.y }
+  })
+
+  players.value.forEach((pl, i) => {
+    if (pl.gameOver) return
+    const next = moves[i]!
+    if (next.x < 0 || next.x >= SIZE || next.y < 0 || next.y >= SIZE) { pl.gameOver = true; ctfScatterFlags(i); return }
+    if (obstacles.value.some(o => o.x === next.x && o.y === next.y)) { pl.gameOver = true; ctfScatterFlags(i); return }
+    if (pl.snake.some(s => s.x === next.x && s.y === next.y)) { pl.gameOver = true; ctfScatterFlags(i); return }
+    const opp = players.value[1 - i]!
+    if (!opp.gameOver && opp.snake.some(s => s.x === next.x && s.y === next.y)) { pl.gameOver = true; ctfScatterFlags(i); return }
+  })
+
+  if (!players.value[0]!.gameOver && !players.value[1]!.gameOver) {
+    const n0 = moves[0]!, n1 = moves[1]!
+    const h0 = players.value[0]!.snake[0]!, h1 = players.value[1]!.snake[0]!
+    if ((n0.x === n1.x && n0.y === n1.y) || (n0.x === h1.x && n0.y === h1.y && n1.x === h0.x && n1.y === h0.y)) {
+      players.value[0]!.gameOver = true; ctfScatterFlags(0)
+      players.value[1]!.gameOver = true; ctfScatterFlags(1)
+    }
+  }
+
+  players.value.forEach((pl, i) => {
+    if (pl.gameOver) return
+    const next = moves[i]!
+    pl.snake.unshift(next)
+
+    ctfFlags.value.forEach(f => {
+      if (f.carriedBy !== null) return
+      if (f.x === next.x && f.y === next.y) f.carriedBy = i
+    })
+
+    if (isInBase(next.x, next.y, i)) {
+      ctfFlags.value.forEach(f => {
+        if (f.carriedBy !== i) return
+        if (f.type === 'center') {
+          pl.score++; f.carriedBy = null
+          setTimeout(() => { if (f.x === -1) { const p = randomFreePos(players.value[0]!); f.x = p.x; f.y = p.y }}, 2000)
+          f.x = -1
+        } else if (f.owner !== i) {
+          pl.score += 3; f.carriedBy = null
+          const sx = f.owner === 0 ? 1 : 18, sy = f.owner === 0 ? 18 : 1
+          setTimeout(() => { if (f.x === -1) { f.x = sx; f.y = sy }}, 8000)
+          f.x = -1
+        }
+      })
+    }
+    pl.snake.pop()
+  })
+
+  players.value.forEach((pl, i) => {
+    if (pl.gameOver) return
+    const opp = players.value[1 - i]!
+    if (opp.gameOver) return
+    if (ctfEncircleCooldown.value[i]! > 0) { ctfEncircleCooldown.value[i]!--; return }
+    if (encircleCheck(pl.snake, opp.snake, opp.snake[0]!)) { pl.score++; ctfEncircleCooldown.value[i] = 10 }
+  })
+
+  players.value.forEach((pl, i) => {
+    if (pl.gameOver && ctfRespawnTimers.value[i] === 0) {
+      const base = CTF_BASES[i]!
+      pl.snake = [{ x: base.x + 1, y: base.y + 1 }]
+      pl.dir = i === 0 ? DIR.LEFT : DIR.RIGHT
+      pl.dirKey = i === 0 ? 'LEFT' : 'RIGHT'
+      pl.gameOver = false
+      ctfRespawnTimers.value[i] = -1
+    }
+    if (pl.gameOver && ctfRespawnTimers.value[i] === -1) ctfRespawnTimers.value[i] = 3
+    if (ctfRespawnTimers.value[i]! > 0) ctfRespawnTimers.value[i]!--
+  })
+
+  players.value.forEach((pl, i) => {
+    if (ctfWinner.value !== null) return
+    if (pl.score >= ctfTarget) {
+      ctfWinner.value = i
+      started.value = false
+    }
+  })
+
+  lastTick = performance.now(); curInt = 95
+  if (!started.value) return
+  timer = setTimeout(tickCTF, curInt)
+}
+
 function onGameOver(pl: Player) {
   if (mode.value !== 'speed' || speedSaved) return
   speedSaved = true
@@ -262,11 +440,16 @@ function onGameOver(pl: Player) {
   saveLeaderboard({ score: pl.score, timestamp: Date.now(), duration, speed: speedMaxSpeed })
 }
 
-function switchMode(m: 'single' | 'dual' | 'free' | 'speed') {
+function switchMode(m: 'single' | 'dual' | 'free' | 'speed' | 'ctf') {
   if (timer) clearTimeout(timer)
   mode.value = m
   if (m === 'single' || m === 'free' || m === 'speed') {
     players.value = [makePlayer(10, 10, DIR.RIGHT)]
+  } else if (m === 'ctf') {
+    players.value = [
+      makePlayer(1, 18, DIR.RIGHT),
+      makePlayer(18, 1, DIR.LEFT),
+    ]
   } else {
     players.value = [makePlayer(14, 10, DIR.LEFT), makePlayer(5, 10, DIR.RIGHT)]
   }
@@ -343,7 +526,23 @@ onUnmounted(() => {
 <template>
   <div class="game-container">
     <div class="boards">
-      <template v-for="(_, bi) in players" :key="bi">
+      <template v-if="mode === 'ctf'">
+        <div class="board-wrapper">
+          <div class="board">
+            <div v-for="(cell, i) in ctfCells" :key="i" class="cell" :class="cell.cls" />
+          </div>
+          <div v-for="pi in [0,1]" :key="pi" class="snake-container" :style="{ zIndex: pi === 0 ? 2 : 1 }">
+            <div
+              v-for="(seg, i) in segmentStyles[pi]"
+              :key="i"
+              class="snake-seg"
+              :class="{ head: seg.head, 'flag-carried': ctfFlags.some(f => f.carriedBy === pi) && i === 0 }"
+              :style="seg.style"
+            ><template v-if="seg.head"><div class="eye" :style="eyeStyle(seg.dirKey!, 0)" /><div class="eye" :style="eyeStyle(seg.dirKey!, 1)" /></template></div>
+          </div>
+        </div>
+      </template>
+      <template v-else v-for="(_, bi) in players" :key="bi">
         <div v-if="mode === 'dual'" class="player-panel">
           <div class="player-label">
             {{ bi === 0 ? 'P2' : 'P1' }}
@@ -390,6 +589,7 @@ onUnmounted(() => {
           <button class="mode-btn" :class="{ active: mode === 'dual' }" @click="switchMode('dual')">雙人</button>
           <button class="mode-btn" :class="{ active: mode === 'free' }" @click="switchMode('free')">自由</button>
           <button class="mode-btn" :class="{ active: mode === 'speed' }" @click="switchMode('speed')">速度遞增</button>
+          <button class="mode-btn" :class="{ active: mode === 'ctf' }" @click="switchMode('ctf')">奪旗戰</button>
         </div>
       </div>
       <div class="difficulty" v-if="mode === 'single'">
@@ -421,6 +621,22 @@ onUnmounted(() => {
             </div>
           </div>
         </template>
+        <template v-else-if="mode === 'ctf'">
+          <div class="score-row">
+            <div class="score-item">
+              <p class="label">P2 🏴{{ ctfFlags.filter(f => f.carriedBy === 1).length }}</p>
+              <p class="value">{{ players[1]?.score ?? 0 }}</p>
+            </div>
+            <div class="score-item">
+              <p class="label">目標</p>
+              <p class="value" style="font-size:22px">{{ ctfTarget }}</p>
+            </div>
+            <div class="score-item">
+              <p class="label">P1 🏴{{ ctfFlags.filter(f => f.carriedBy === 0).length }}</p>
+              <p class="value">{{ players[0]?.score ?? 0 }}</p>
+            </div>
+          </div>
+        </template>
         <template v-else>
           <div class="score-row">
             <div class="score-item">
@@ -437,9 +653,13 @@ onUnmounted(() => {
       <div class="info">
         <p v-if="!started && players.every(p => !p.gameOver)">Press <kbd>Space</kbd> to start</p>
         <template v-if="players.some(p => p.gameOver)">
-          <p class="game-over">GAME OVER</p>
+          <p class="game-over" v-if="mode !== 'ctf'">GAME OVER</p>
+          <p class="game-over" v-else style="font-size:24px">P{{ (ctfWinner ?? 0) + 1 }} 獲勝!</p>
           <p v-if="mode === 'speed' && gameOverRank" style="font-size:13px;color:#e94560">
             得分 {{ players[0]?.score }} | 最快 {{ speedMaxSpeed }}ms | 排名 #{{ gameOverRank.rank }}/{{ gameOverRank.total }}
+          </p>
+          <p v-else-if="mode === 'ctf'" style="font-size:13px;color:#aabbcc">
+            P1: {{ players[0]?.score }} | P2: {{ players[1]?.score }}
           </p>
           <p>Press <kbd>Space</kbd> to restart</p>
         </template>
@@ -502,6 +722,12 @@ kbd{display:inline-block;padding:2px 7px;font-size:13px;font-family:inherit;back
 .mode-btn:hover,.diff-btn:hover{border-color:#e94560;color:#ccddee}
 .mode-btn.active,.diff-btn.active{border-color:#e94560;background:#e94560;color:#fff}
 .difficulty{text-align:center;padding:10px;background:#0f3460;border-radius:12px;border:2px solid #1a1a4e}
+.cell.base-p0{background:#1a4a3e;box-shadow:none}
+.cell.base-p1{background:#4a1a3e;box-shadow:none}
+.cell.flag{background:#fbbf24;box-shadow:none;border-radius:4px}
+.cell.flag-p0{background:#4ade80;box-shadow:none;border-radius:4px}
+.cell.flag-p1{background:#f87171;box-shadow:none;border-radius:4px}
+.snake-seg.flag-carried{box-shadow:0 0 10px #fbbf24, inset 0 0 6px #fbbf24}
 .leaderboard{text-align:center;padding:10px;background:#0f3460;border-radius:12px;border:2px solid #1a1a4e;margin-top:12px}
 .lb-entry{display:flex;justify-content:space-between;font-size:12px;color:#aabbcc;padding:4px 6px;border-bottom:1px solid #1a1a4e;align-items:center}
 .lb-entry:last-child{border-bottom:none}
