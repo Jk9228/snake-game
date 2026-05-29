@@ -106,6 +106,7 @@ interface Player {
   score: number
   gameOver: boolean
   magnetUntil: number
+  prevSnake: Pos[]
 }
 
 const mode = ref<'single' | 'dual' | 'free' | 'speed' | 'ctf' | 'magnet'>('single')
@@ -156,7 +157,7 @@ const gameOverRank = computed(() => {
 
 function makePlayer(startX: number, startY: number, dir: Pos): Player {
   const dirKey = posToKey(dir)
-  return { snake: [{ x: startX, y: startY }], foods: [], dir, dirKey, inputQueue: [], dirCooldown: 0, score: 0, gameOver: false, magnetUntil: 0 }
+  return { snake: [{ x: startX, y: startY }], foods: [], dir, dirKey, inputQueue: [], dirCooldown: 0, score: 0, gameOver: false, magnetUntil: 0, prevSnake: [{ x: startX, y: startY }] }
 }
 
 function isOccupied(pl: Player, includePowerUps = false) {
@@ -342,6 +343,7 @@ function tick() {
     if (pl.snake.some(s => s.x === next.x && s.y === next.y)) { pl.gameOver = true; onGameOver(pl); return }
     if (obstacles.value.some(o => o.x === next.x && o.y === next.y)) { pl.gameOver = true; onGameOver(pl); return }
 
+    pl.prevSnake = pl.snake.map(s => ({ ...s }))
     pl.snake.unshift(next)
     const ate = pl.foods.findIndex(f => f.x === next.x && f.y === next.y)
     if (ate !== -1) {
@@ -454,6 +456,7 @@ function tickCTF() {
   players.value.forEach((pl, i) => {
     if (pl.gameOver) return
     const next = moves[i]!
+    pl.prevSnake = pl.snake.map(s => ({ ...s }))
     pl.snake.unshift(next)
 
     ctfFlags.value.forEach(f => {
@@ -567,14 +570,16 @@ function updateSegmentPositions() {
     if (!container) return
     const segs = container.querySelectorAll<HTMLElement>('.snake-seg')
     pl.snake.forEach((seg, i) => {
-      let dx = 0, dy = 0
-      if (i === 0) { dx = pl.dir.x; dy = pl.dir.y }
-      else { const prev = pl.snake[i - 1]; if (prev) { dx = prev.x - seg.x; dy = prev.y - seg.y } }
+      const prev = pl.prevSnake?.[i]
       const el = segs[i]
       if (el) {
-        const px = Math.max(0, Math.min(SIZE - 1, seg.x + dx * visualProgress))
-        const py = Math.max(0, Math.min(SIZE - 1, seg.y + dy * visualProgress))
-        el.style.transform = `translate(${px * 25}px, ${py * 25}px)`
+        if (prev) {
+          const px = Math.max(0, Math.min(SIZE - 1, prev.x + (seg.x - prev.x) * visualProgress))
+          const py = Math.max(0, Math.min(SIZE - 1, prev.y + (seg.y - prev.y) * visualProgress))
+          el.style.transform = `translate(${px * 25}px, ${py * 25}px)`
+        } else {
+          el.style.transform = `translate(${seg.x * 25}px, ${seg.y * 25}px)`
+        }
       }
     })
   })
