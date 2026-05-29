@@ -357,7 +357,7 @@ function tick() {
     if (next.x < -1 || next.x > SIZE + 1 || next.y < -1 || next.y > SIZE + 1) { pl.gameOver = true; onGameOver(pl); return }
     if (next.x < 0 || next.x > SIZE || next.y < 0 || next.y > SIZE) {
       if (pl.outOfBounds > 0) { pl.gameOver = true; onGameOver(pl); return }
-      pl.outOfBounds = performance.now()
+      pl.outOfBounds = 1
       return
     }
     pl.outOfBounds = 0
@@ -636,11 +636,7 @@ function rafLoop(time: number) {
   if (started.value && lastTick > 0) {
     visualProgress = Math.min((time - lastTick) / curInt, 1)
     if (mode.value === 'magnet') {
-      const now = performance.now()
       players.value.forEach(pl => {
-        if (pl.outOfBounds > 0 && now - pl.outOfBounds > 60) {
-          pl.gameOver = true; onGameOver(pl)
-        }
         if (pl.gameOver) return
         const head = pl.snake[0]!
         const hc = head.x + 0.5, vc = head.y + 0.5
