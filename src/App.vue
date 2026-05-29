@@ -613,6 +613,12 @@ onUnmounted(() => {
 
 <template>
   <div class="game-container">
+    <div class="toggle-box">
+      <label class="toggle-label">
+        <input type="checkbox" v-model="magnetPickups" :disabled="mode === 'magnet'" />
+        磁鐵
+      </label>
+    </div>
     <div class="boards">
       <template v-if="mode === 'ctf'">
         <div class="board-wrapper">
@@ -771,12 +777,6 @@ onUnmounted(() => {
         <p class="arrow-keys" v-if="mode === 'single' || mode === 'free' || mode === 'speed' || mode === 'magnet'"><kbd>&uarr;&darr;&larr;&rarr;</kbd></p>
         <p class="arrow-keys" v-else><kbd>&uarr;&darr;&larr;&rarr;</kbd> <kbd>W A S D</kbd></p>
       </div>
-      <div class="toggle-box">
-        <label class="toggle-label">
-          <input type="checkbox" v-model="magnetPickups" :disabled="mode === 'magnet'" />
-          磁鐵道具
-        </label>
-      </div>
       <div v-if="mode === 'speed'" class="leaderboard">
         <p class="label">LEADERBOARD</p>
         <div v-if="leaderboard.length === 0" class="lb-empty">尚無記錄</div>
@@ -842,9 +842,9 @@ kbd{display:inline-block;padding:2px 7px;font-size:13px;font-family:inherit;back
 .difficulty{text-align:center;padding:10px;background:#0f3460;border-radius:12px;border:2px solid #1a1a4e}
 .cell.powerup{background:#60a5fa;box-shadow:none;border-radius:3px;animation:pulse .6s ease-in-out infinite alternate}
 .snake-seg.magnet-active{box-shadow:0 0 14px #60a5fa, inset 0 0 7px #60a5fa}
-.toggle-box{text-align:center;padding:10px;background:#0f3460;border-radius:12px;border:2px solid #1a1a4e}
-.toggle-label{display:flex;align-items:center;justify-content:center;gap:6px;font-size:12px;font-weight:600;color:#aabbcc;cursor:pointer;letter-spacing:1px}
-.toggle-label input[type=checkbox]{accent-color:#60a5fa;width:14px;height:14px;cursor:pointer}
+.toggle-box{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;padding:14px 10px;background:#0f3460;border-radius:12px;border:2px solid #1a1a4e;writing-mode:vertical-lr}
+.toggle-label{display:flex;flex-direction:column;align-items:center;gap:6px;font-size:11px;font-weight:600;color:#aabbcc;cursor:pointer;letter-spacing:1px}
+.toggle-label input[type=checkbox]{accent-color:#60a5fa;width:14px;height:14px;cursor:pointer;transform:rotate(90deg)}
 .toggle-label input[type=checkbox]:disabled{opacity:.4;cursor:default}
 .cell.base-p0{background:#1a4a3e;box-shadow:none}
 .cell.base-p1{background:#4a1a3e;box-shadow:none}
