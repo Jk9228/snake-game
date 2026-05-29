@@ -232,7 +232,9 @@ function tick() {
     if (obstacles.value.some(o => o.x === next.x && o.y === next.y)) { pl.gameOver = true; onGameOver(pl); return }
 
     pl.snake.unshift(next)
-    const ate = pl.foods.findIndex(f => f.x === next.x && f.y === next.y)
+    const ate = pl.foods.findIndex(f =>
+      mode.value === 'speed' ? Math.abs(f.x - next.x) <= 1 && Math.abs(f.y - next.y) <= 1 : f.x === next.x && f.y === next.y
+    )
     if (ate !== -1) {
       pl.score++
       pl.foods.splice(ate, 1)
