@@ -54,10 +54,9 @@ kbd{display:inline-block;padding:2px 7px;font-size:13px;font-family:inherit;back
 .controls{text-align:center;padding:10px;background:#0f3460;border-radius:12px;border:2px solid #1a1a4e}
 .arrow-keys{font-size:18px;line-height:1.6;color:#ccddee}
 .mode-select{text-align:center;padding:10px;background:#0f3460;border-radius:12px;border:2px solid #1a1a4e}
-.mode-btns{display:flex;gap:6px;justify-content:center;margin-top:6px}
-.mode-btn{padding:5px 14px;font-size:12px;font-weight:600;font-family:inherit;background:#1a1a4e;border:2px solid #334466;border-radius:6px;color:#8899aa;cursor:pointer;transition:all .15s}
-.mode-btn:hover{border-color:#e94560;color:#ccddee}
-.mode-btn.active{border-color:#e94560;background:#e94560;color:#fff}
+#modeSelect{width:100%;margin-top:6px;padding:6px 10px;font-size:14px;font-weight:600;font-family:inherit;background:#1a1a4e;border:2px solid #334466;border-radius:6px;color:#ccddee;cursor:pointer;outline:none}
+#modeSelect:hover{border-color:#e94560}
+#modeSelect:focus{border-color:#e94560}
 .difficulty{text-align:center;padding:10px;background:#0f3460;border-radius:12px;border:2px solid #1a1a4e}
 .diff-btns{display:flex;flex-wrap:wrap;gap:6px;justify-content:center;margin-top:6px}
 .diff-btn{padding:5px 12px;font-size:12px;font-weight:600;font-family:inherit;background:#1a1a4e;border:2px solid #334466;border-radius:6px;color:#8899aa;cursor:pointer;transition:all .15s}
@@ -71,10 +70,10 @@ kbd{display:inline-block;padding:2px 7px;font-size:13px;font-family:inherit;back
   <div class="boards" id="boardsContainer"></div>
   <div class="sidebar">
     <h1>SNAKE</h1>
-    <div class="mode-select">
-      <p class="label">MODE</p>
-      <div class="mode-btns" id="modeBtns"></div>
-    </div>
+      <div class="mode-select">
+        <p class="label">MODE</p>
+        <select id="modeSelect"></select>
+      </div>
     <div class="difficulty" id="diffSection">
       <p class="label">DIFFICULTY</p>
       <div class="diff-btns" id="diffBtns"></div>
@@ -615,7 +614,7 @@ function updateUI() {
 function switchMode(m) {
   if (timer) clearTimeout(timer)
   mode = m
-  document.querySelectorAll('.mode-btn').forEach(b => b.classList.toggle('active', b.dataset.mode === m))
+  modeSelect.value = m
   diffSection.classList.toggle('hidden', m !== 'single')
   const dualMode = m === 'dual' || m === 'ctf'
   controlsText.innerHTML = m === 'single' || m === 'free' || m === 'speed'
@@ -707,14 +706,14 @@ document.addEventListener('keydown', e => {
   }
 })
 
-// Build mode buttons
-;['single','dual','free','speed','ctf'].forEach(m => {
-  const btn = document.createElement('button')
-  btn.className = 'mode-btn'; btn.dataset.mode = m
-  btn.textContent = m === 'single' ? '單人' : m === 'dual' ? '雙人' : m === 'free' ? '自由' : m === 'speed' ? '速度遞增' : '奪旗戰'
-  btn.addEventListener('click', () => switchMode(m))
-  modeBtns.appendChild(btn)
+// Build mode select
+const modeNames = { single: '單人', dual: '雙人', free: '自由', speed: '速度遞增', ctf: '奪旗戰' }
+const modeSelect = document.getElementById('modeSelect')
+Object.entries(modeNames).forEach(([v, label]) => {
+  const opt = document.createElement('option'); opt.value = v; opt.textContent = label
+  modeSelect.appendChild(opt)
 })
+modeSelect.addEventListener('change', () => switchMode(modeSelect.value))
 
 // Build difficulty buttons
 Object.entries(DIFFICULTIES).forEach(([key, cfg]) => {

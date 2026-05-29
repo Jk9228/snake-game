@@ -597,13 +597,13 @@ onUnmounted(() => {
       <h1>SNAKE</h1>
       <div class="mode-select">
         <p class="label">MODE</p>
-        <div class="mode-btns">
-          <button class="mode-btn" :class="{ active: mode === 'single' }" @click="switchMode('single')">單人</button>
-          <button class="mode-btn" :class="{ active: mode === 'dual' }" @click="switchMode('dual')">雙人</button>
-          <button class="mode-btn" :class="{ active: mode === 'free' }" @click="switchMode('free')">自由</button>
-          <button class="mode-btn" :class="{ active: mode === 'speed' }" @click="switchMode('speed')">速度遞增</button>
-          <button class="mode-btn" :class="{ active: mode === 'ctf' }" @click="switchMode('ctf')">奪旗戰</button>
-        </div>
+        <select v-model="mode" @change="switchMode(mode)">
+          <option value="single">單人</option>
+          <option value="dual">雙人</option>
+          <option value="free">自由</option>
+          <option value="speed">速度遞增</option>
+          <option value="ctf">奪旗戰</option>
+        </select>
       </div>
       <div class="difficulty" v-if="mode === 'single'">
         <p class="label">DIFFICULTY</p>
@@ -734,10 +734,13 @@ kbd{display:inline-block;padding:2px 7px;font-size:13px;font-family:inherit;back
 .controls{text-align:center;padding:10px;background:#0f3460;border-radius:12px;border:2px solid #1a1a4e}
 .arrow-keys{font-size:18px;line-height:1.6;color:#ccddee}
 .mode-select{text-align:center;padding:10px;background:#0f3460;border-radius:12px;border:2px solid #1a1a4e}
-.mode-btns,.diff-btns{display:flex;gap:6px;justify-content:center;margin-top:6px}
-.mode-btn,.diff-btn{padding:5px 12px;font-size:12px;font-weight:600;font-family:inherit;background:#1a1a4e;border:2px solid #334466;border-radius:6px;color:#8899aa;cursor:pointer;transition:all .15s}
-.mode-btn:hover,.diff-btn:hover{border-color:#e94560;color:#ccddee}
-.mode-btn.active,.diff-btn.active{border-color:#e94560;background:#e94560;color:#fff}
+.mode-select select{width:100%;margin-top:6px;padding:6px 10px;font-size:14px;font-weight:600;font-family:inherit;background:#1a1a4e;border:2px solid #334466;border-radius:6px;color:#ccddee;cursor:pointer;outline:none}
+.mode-select select:hover{border-color:#e94560}
+.mode-select select:focus{border-color:#e94560}
+.diff-btns{display:flex;gap:6px;justify-content:center;margin-top:6px}
+.diff-btn{padding:5px 12px;font-size:12px;font-weight:600;font-family:inherit;background:#1a1a4e;border:2px solid #334466;border-radius:6px;color:#8899aa;cursor:pointer;transition:all .15s}
+.diff-btn:hover{border-color:#e94560;color:#ccddee}
+.diff-btn.active{border-color:#e94560;background:#e94560;color:#fff}
 .difficulty{text-align:center;padding:10px;background:#0f3460;border-radius:12px;border:2px solid #1a1a4e}
 .cell.base-p0{background:#1a4a3e;box-shadow:none}
 .cell.base-p1{background:#4a1a3e;box-shadow:none}
