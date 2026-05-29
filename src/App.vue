@@ -616,7 +616,8 @@ function updateSegmentPositions() {
       }
     })
     if (mode.value === 'magnet') {
-      const foods = container.querySelectorAll<HTMLElement>('.magnet-food')
+      const wrapper = container.closest('.board-wrapper')!
+      const foods = wrapper.querySelectorAll<HTMLElement>('.magnet-food')
       pl.smoothFoods.forEach((f, i) => {
         const el = foods[i]
         if (el) el.style.transform = `translate(${f.x * 25 - 12.5}px, ${f.y * 25 - 12.5}px)`
@@ -716,6 +717,9 @@ onUnmounted(() => {
         <div v-else class="board-wrapper">
           <div class="board">
             <div v-for="(cell, i) in cells[bi]" :key="i" class="cell" :class="cell.cls" />
+            <template v-if="mode === 'magnet'">
+              <div v-for="(f, i) in players[bi]?.smoothFoods ?? []" :key="'mf'+i" class="magnet-food" />
+            </template>
           </div>
           <div class="snake-container">
             <div
@@ -724,9 +728,6 @@ onUnmounted(() => {
               :class="['snake-seg', 'p'+bi, { head: seg.head, 'magnet-active': seg.magnet }]"
               :style="seg.style"
             ><template v-if="seg.head"><div class="eye" :style="eyeStyle(seg.dirKey!, 0)" /><div class="eye" :style="eyeStyle(seg.dirKey!, 1)" /></template></div>
-            <template v-if="mode === 'magnet'">
-              <div v-for="(f, i) in players[bi]?.smoothFoods ?? []" :key="'mf'+i" class="magnet-food" />
-            </template>
           </div>
         </div>
       </template>
@@ -850,7 +851,7 @@ body{display:flex;justify-content:center;align-items:center;min-height:100vh;bac
 .game-container{display:flex;align-items:flex-start;gap:36px;padding:24px;background:#16213e;border-radius:16px;box-shadow:0 8px 32px rgba(0,0,0,.4)}
 .boards{display:flex;gap:24px}
 .board-wrapper{position:relative;border:3px solid #0f3460;border-radius:8px;overflow:hidden;background:#0a0a23}
-.board{display:grid;grid-template-columns:repeat(20,25px);grid-template-rows:repeat(20,25px)}
+.board{display:grid;grid-template-columns:repeat(20,25px);grid-template-rows:repeat(20,25px);position:relative}
 .cell{width:25px;height:25px;box-shadow:inset 0 0 0 1px #1a1a3e}
 .cell.food{background:#f87171;box-shadow:none;border-radius:50%;animation:pulse .8s ease-in-out infinite alternate}
 .magnet-food{position:absolute;width:25px;height:25px;border-radius:50%;background:#f87171;box-shadow:0 0 12px #f87171;z-index:5;animation:pulse .8s ease-in-out infinite alternate}
