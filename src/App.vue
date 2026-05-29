@@ -649,7 +649,8 @@ function rafLoop(time: number) {
             let bestDist = Infinity
             for (const c of candidates) {
               const onBody = pl.snake.some((s, si) => si > 0 && Math.abs(c.x - (s.x + 0.5)) < 0.6 && Math.abs(c.y - (s.y + 0.5)) < 0.6)
-              if (!onBody) {
+              const onFood = pl.smoothFoods.some(other => other !== f && Math.abs(c.x - other.x) < 0.5 && Math.abs(c.y - other.y) < 0.5)
+              if (!onBody && !onFood) {
                 const cd = (c.x - hc) ** 2 + (c.y - vc) ** 2
                 if (cd < bestDist) { bestDist = cd; best = c }
               }
