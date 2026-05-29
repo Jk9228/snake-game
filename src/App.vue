@@ -94,6 +94,8 @@ const DIFFICULTIES: Record<string, { label: string; foodCount: number; hasObstac
   hell: { label: '地獄', foodCount: 3, hasObstacles: true },
 }
 
+interface PowerUp { x: number; y: number; type: 'magnet' }
+
 interface Player {
   snake: Pos[]
   foods: Pos[]
@@ -103,12 +105,14 @@ interface Player {
   dirCooldown: number
   score: number
   gameOver: boolean
+  magnetUntil: number
 }
 
 const mode = ref<'single' | 'dual' | 'free' | 'speed' | 'ctf'>('single')
 const difficulty = ref<string>('easy')
 const players = ref<Player[]>([])
 const obstacles = ref<Pos[]>([])
+const powerUps = ref<PowerUp[]>([])
 const started = ref(false)
 const initSpeed = ref(120)
 let visualProgress = 0
@@ -152,14 +156,15 @@ const gameOverRank = computed(() => {
 
 function makePlayer(startX: number, startY: number, dir: Pos): Player {
   const dirKey = posToKey(dir)
-  return { snake: [{ x: startX, y: startY }], foods: [], dir, dirKey, inputQueue: [], dirCooldown: 0, score: 0, gameOver: false }
+  return { snake: [{ x: startX, y: startY }], foods: [], dir, dirKey, inputQueue: [], dirCooldown: 0, score: 0, gameOver: false, magnetUntil: 0 }
 }
 
-function isOccupied(pl: Player) {
+function isOccupied(pl: Player, includePowerUps = false) {
   return (x: number, y: number) => {
     if (pl.snake.some(s => s.x === x && s.y === y)) return true
     if (pl.foods.some(f => f.x === x && f.y === y)) return true
     if (obstacles.value.some(o => o.x === x && o.y === y)) return true
+    if (includePowerUps && powerUps.value.some(p => p.x === x && p.y === y)) return true
     if (mode.value === 'ctf') {
       const opp = players.value[1 - players.value.indexOf(pl)]
       if (opp && opp.snake.some(s => s.x === x && s.y === y)) return true
@@ -170,8 +175,8 @@ function isOccupied(pl: Player) {
   }
 }
 
-function randomFreePos(pl: Player): Pos {
-  const occ = isOccupied(pl)
+function randomFreePos(pl: Player, includePowerUps = false): Pos {
+  const occ = isOccupied(pl, includePowerUps)
   let pos: Pos
   do { pos = { x: Math.floor(Math.random() * SIZE), y: Math.floor(Math.random() * SIZE) } }
   while (occ(pos.x, pos.y))
@@ -182,7 +187,17 @@ function spawnFoods(pl: Player) {
   let n: number
   if (mode.value === 'free') n = getFreeFoodCount(pl.score)
   else n = mode.value === 'single' ? DIFFICULTIES[difficulty.value]!.foodCount : 1
-  while (pl.foods.length < n) pl.foods.push(randomFreePos(pl))
+  while (pl.foods.length < n) pl.foods.push(randomFreePos(pl, true))
+}
+
+const powerUpTypes: PowerUp['type'][] = ['magnet']
+
+function spawnPowerUp(pl: Player) {
+  if (Math.random() > 0.2) return
+  if (powerUps.value.length >= 3) return
+  const pos = randomFreePos(pl, true)
+  const type = powerUpTypes[Math.floor(Math.random() * powerUpTypes.length)]!
+  powerUps.value.push({ x: pos.x, y: pos.y, type })
 }
 
 function generateObstacles(pl: Player) {
@@ -213,12 +228,14 @@ const cells = computed(() => {
     const result: { cls: string }[] = []
     const foodSet = new Set(pl.foods.map(f => `${f.x},${f.y}`))
     const obstacleSet = new Set(obstacles.value.map(o => `${o.x},${o.y}`))
+    const powerUpSet = new Set(powerUps.value.map(p => `${p.x},${p.y}`))
     for (let y = 0; y < SIZE; y++) {
       for (let x = 0; x < SIZE; x++) {
         const key = `${x},${y}`
         let cls = ''
         if (foodSet.has(key)) cls = 'food'
         else if (obstacleSet.has(key)) cls = 'obstacle'
+        else if (powerUpSet.has(key)) cls = 'powerup'
         result.push({ cls })
       }
     }
@@ -262,10 +279,11 @@ const ctfCells = computed(() => {
 
 const segmentStyles = computed(() => {
   return players.value.map(pl => {
+    const magnet = pl.magnetUntil > performance.now()
     return pl.snake.map((seg, i) => {
       const style = `transform:translate(${seg.x * 25}px,${seg.y * 25}px)`
       return i === 0
-        ? { head: true, style, dirKey: pl.dirKey }
+        ? { head: true, style, dirKey: pl.dirKey, magnet }
         : { head: false, style }
     })
   })
@@ -275,6 +293,7 @@ function reset() {
   if (timer) clearTimeout(timer)
   started.value = false
   obstacles.value = []
+  powerUps.value = []
   speedStartTime = null
   speedMaxSpeed = 150
   speedSaved = false
@@ -330,8 +349,39 @@ function tick() {
     if (ate !== -1) {
       pl.score++
       pl.foods.splice(ate, 1)
+      spawnPowerUp(pl)
     } else {
       pl.snake.pop()
+    }
+  })
+  players.value.forEach(pl => {
+    if (pl.gameOver) return
+    const now = performance.now()
+    if (pl.magnetUntil > now) {
+      const head = pl.snake[0]!
+      pl.foods.forEach(f => {
+        const dx = head.x - f.x, dy = head.y - f.y
+        if (dx === 0 && dy === 0) return
+        if (Math.abs(dx) <= 1 && Math.abs(dy) <= 1) {
+          const stepX = dx === 0 ? 0 : (dx > 0 ? 1 : -1)
+          const stepY = dy === 0 ? 0 : (dy > 0 ? 1 : -1)
+          const nx = f.x + stepX, ny = f.y + stepY
+          if (!pl.snake.some(s => s.x === nx && s.y === ny) &&
+              !obstacles.value.some(o => o.x === nx && o.y === ny) &&
+              !pl.foods.some(other => other !== f && other.x === nx && other.y === ny)) {
+            f.x = nx; f.y = ny
+          }
+        }
+      })
+    } else if (pl.magnetUntil > 0) {
+      pl.magnetUntil = 0
+    }
+    const head = pl.snake[0]!
+    const pi = powerUps.value.findIndex(p => p.x === head.x && p.y === head.y)
+    if (pi !== -1) {
+      const pu = powerUps.value[pi]!
+      if (pu.type === 'magnet') pl.magnetUntil = now + 5000
+      powerUps.value.splice(pi, 1)
     }
   })
   players.value.forEach(pl => {
@@ -555,7 +605,7 @@ onUnmounted(() => {
             <div
               v-for="(seg, i) in segmentStyles[pi]"
               :key="i"
-              :class="['snake-seg', 'p'+pi, { head: seg.head, 'flag-carried': ctfFlags.some(f => f.carriedBy === pi) && i === 0 }]"
+              :class="['snake-seg', 'p'+pi, { head: seg.head, 'magnet-active': seg.magnet, 'flag-carried': ctfFlags.some(f => f.carriedBy === pi) && i === 0 }]"
               :style="seg.style"
             ><template v-if="seg.head"><div class="eye" :style="eyeStyle(seg.dirKey!, 0)" /><div class="eye" :style="eyeStyle(seg.dirKey!, 1)" /></template></div>
           </div>
@@ -583,7 +633,7 @@ onUnmounted(() => {
               <div
                 v-for="(seg, i) in segmentStyles[bi === 0 ? 1 : 0]"
                 :key="i"
-              :class="['snake-seg', 'p'+(bi === 0 ? 1 : 0), { head: seg.head }]"
+              :class="['snake-seg', 'p'+(bi === 0 ? 1 : 0), { head: seg.head, 'magnet-active': seg.magnet }]"
               :style="seg.style"
             ><template v-if="seg.head"><div class="eye" :style="eyeStyle(seg.dirKey!, 0)" /><div class="eye" :style="eyeStyle(seg.dirKey!, 1)" /></template></div>
             </div>
@@ -597,7 +647,7 @@ onUnmounted(() => {
             <div
               v-for="(seg, i) in segmentStyles[bi]"
               :key="i"
-              :class="['snake-seg', 'p'+bi, { head: seg.head }]"
+              :class="['snake-seg', 'p'+bi, { head: seg.head, 'magnet-active': seg.magnet }]"
               :style="seg.style"
             ><template v-if="seg.head"><div class="eye" :style="eyeStyle(seg.dirKey!, 0)" /><div class="eye" :style="eyeStyle(seg.dirKey!, 1)" /></template></div>
           </div>
@@ -765,6 +815,8 @@ kbd{display:inline-block;padding:2px 7px;font-size:13px;font-family:inherit;back
 .diff-btn:hover{border-color:#e94560;color:#ccddee}
 .diff-btn.active{border-color:#e94560;background:#e94560;color:#fff}
 .difficulty{text-align:center;padding:10px;background:#0f3460;border-radius:12px;border:2px solid #1a1a4e}
+.cell.powerup{background:#60a5fa;box-shadow:none;border-radius:3px;animation:pulse .6s ease-in-out infinite alternate}
+.snake-seg.magnet-active{box-shadow:0 0 14px #60a5fa, inset 0 0 7px #60a5fa}
 .cell.base-p0{background:#1a4a3e;box-shadow:none}
 .cell.base-p1{background:#4a1a3e;box-shadow:none}
 .cell.flag{background:#fbbf24;box-shadow:none;border-radius:4px}
