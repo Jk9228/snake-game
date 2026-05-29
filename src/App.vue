@@ -571,7 +571,11 @@ function updateSegmentPositions() {
       if (i === 0) { dx = pl.dir.x; dy = pl.dir.y }
       else { const prev = pl.snake[i - 1]; if (prev) { dx = prev.x - seg.x; dy = prev.y - seg.y } }
       const el = segs[i]
-      if (el) el.style.transform = `translate(${(seg.x + dx * visualProgress) * 25}px, ${(seg.y + dy * visualProgress) * 25}px)`
+      if (el) {
+        const px = Math.max(0, Math.min(SIZE - 1, seg.x + dx * visualProgress))
+        const py = Math.max(0, Math.min(SIZE - 1, seg.y + dy * visualProgress))
+        el.style.transform = `translate(${px * 25}px, ${py * 25}px)`
+      }
     })
   })
 }
