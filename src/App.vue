@@ -353,7 +353,7 @@ function tick() {
     const head = pl.snake[0]!
     const next: Pos = { x: head.x + pl.dir.x, y: head.y + pl.dir.y }
 
-    if (next.x < 0 || next.x >= SIZE || next.y < 0 || next.y >= SIZE) { pl.gameOver = true; onGameOver(pl); return }
+    if (next.x < 0 || next.x > SIZE || next.y < 0 || next.y > SIZE) { pl.gameOver = true; onGameOver(pl); return }
     if (pl.snake.some(s => s.x === next.x && s.y === next.y)) { pl.gameOver = true; onGameOver(pl); return }
     if (obstacles.value.some(o => o.x === next.x && o.y === next.y)) { pl.gameOver = true; onGameOver(pl); return }
 
