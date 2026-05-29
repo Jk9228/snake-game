@@ -282,7 +282,10 @@ const segmentStyles = computed(() => {
   return players.value.map(pl => {
     const magnet = pl.magnetUntil > performance.now()
     return pl.snake.map((seg, i) => {
-      const style = `transform:translate(${seg.x * 25}px,${seg.y * 25}px)`
+      const src = pl.prevSnake?.[i]
+      const style = src
+        ? `transform:translate(${src.x * 25}px,${src.y * 25}px)`
+        : `transform:translate(${seg.x * 25}px,${seg.y * 25}px)`
       return i === 0
         ? { head: true, style, dirKey: pl.dirKey, magnet }
         : { head: false, style }
@@ -588,9 +591,7 @@ function updateSegmentPositions() {
 function rafLoop(time: number) {
   if (started.value && lastTick > 0) {
     visualProgress = Math.min((time - lastTick) / curInt, 1)
-    if (visualProgress > 0 && visualProgress < 1) {
-      updateSegmentPositions()
-    }
+    updateSegmentPositions()
   }
   rafId = requestAnimationFrame(rafLoop)
 }
