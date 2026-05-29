@@ -846,7 +846,7 @@ body{display:flex;justify-content:center;align-items:center;min-height:100vh;bac
 .board{display:grid;grid-template-columns:repeat(20,25px);grid-template-rows:repeat(20,25px);position:relative}
 .cell{width:25px;height:25px;box-shadow:inset 0 0 0 1px #1a1a3e}
 .cell.food{background:#f87171;box-shadow:none;border-radius:50%;animation:pulse .8s ease-in-out infinite alternate}
-.magnet-food{position:absolute;width:25px;height:25px;border-radius:50%;background:#f87171;box-shadow:0 0 12px #f87171;z-index:5;animation:pulse .8s ease-in-out infinite alternate}
+.magnet-food{position:absolute;width:25px;height:25px;border-radius:50%;background:#f87171;box-shadow:0 0 12px #f87171;z-index:5}
 .cell.obstacle{background:#5b21b6;box-shadow:none;border-radius:2px}
 .snake-container{position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none}
 .snake-seg{position:absolute;width:27px;height:27px;border-radius:50%}
