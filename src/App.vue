@@ -638,12 +638,25 @@ function rafLoop(time: number) {
           const dist = Math.sqrt(dx * dx + dy * dy)
           if (dist > 0.01) {
             const speed = Math.min(dist * 0.01, 0.04)
-            const nx = f.x + (dx / dist) * speed
-            const ny = f.y + (dy / dist) * speed
-            const onBody = pl.snake.some((s, si) => si > 0 && Math.abs(nx - (s.x + 0.5)) < 0.4 && Math.abs(ny - (s.y + 0.5)) < 0.4)
-            if (!onBody) {
-              f.x = Math.max(0, Math.min(SIZE, nx))
-              f.y = Math.max(0, Math.min(SIZE, ny))
+            const candidates = [
+              { x: f.x + (dx / dist) * speed, y: f.y + (dy / dist) * speed },
+              { x: f.x + Math.sign(dx) * speed, y: f.y },
+              { x: f.x, y: f.y + Math.sign(dy) * speed },
+              { x: f.x + (dx / dist) * speed * 0.5, y: f.y },
+              { x: f.x, y: f.y + (dy / dist) * speed * 0.5 },
+            ]
+            let best = candidates[0]!
+            let bestDist = Infinity
+            for (const c of candidates) {
+              const onBody = pl.snake.some((s, si) => si > 0 && Math.abs(c.x - (s.x + 0.5)) < 0.6 && Math.abs(c.y - (s.y + 0.5)) < 0.6)
+              if (!onBody) {
+                const cd = (c.x - hc) ** 2 + (c.y - vc) ** 2
+                if (cd < bestDist) { bestDist = cd; best = c }
+              }
+            }
+            if (bestDist < Infinity) {
+              f.x = Math.max(0, Math.min(SIZE, best.x))
+              f.y = Math.max(0, Math.min(SIZE, best.y))
             }
           }
         })
