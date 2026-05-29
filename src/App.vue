@@ -195,7 +195,9 @@ function spawnFoods(pl: Player) {
   if (mode.value === 'free') n = getFreeFoodCount(pl.score)
   else n = mode.value === 'single' ? DIFFICULTIES[difficulty.value]!.foodCount : 1
   while (pl.foods.length < n) pl.foods.push(randomFreePos(pl, true))
-  if (mode.value === 'magnet') pl.smoothFoods = pl.foods.map(f => ({ x: f.x + 0.5, y: f.y + 0.5 }))
+  if (mode.value === 'magnet') {
+    pl.smoothFoods = pl.foods.map(f => ({ x: f.x + 0.5, y: f.y + 0.5 }))
+  }
 }
 
 const powerUpTypes: PowerUp['type'][] = ['magnet']
@@ -363,7 +365,7 @@ function tick() {
       for (let fi = pl.smoothFoods.length - 1; fi >= 0; fi--) {
         const sf = pl.smoothFoods[fi]!
         const dx = hc - sf.x, dy = vc - sf.y
-        if (Math.sqrt(dx * dx + dy * dy) < 0.6) {
+        if (Math.sqrt(dx * dx + dy * dy) < 0.8) {
           pl.score++
           pl.smoothFoods.splice(fi, 1)
           pl.foods.pop()
@@ -635,7 +637,7 @@ function rafLoop(time: number) {
           const dx = hc - f.x, dy = vc - f.y
           const dist = Math.sqrt(dx * dx + dy * dy)
           if (dist > 0.01) {
-            const speed = Math.max(dist * 0.08, 0.2)
+            const speed = Math.max(dist * 0.15, 0.5)
             const nx = f.x + (dx / dist) * speed
             const ny = f.y + (dy / dist) * speed
             f.x = Math.max(0, Math.min(SIZE, nx))
@@ -722,7 +724,9 @@ onUnmounted(() => {
               :class="['snake-seg', 'p'+bi, { head: seg.head, 'magnet-active': seg.magnet }]"
               :style="seg.style"
             ><template v-if="seg.head"><div class="eye" :style="eyeStyle(seg.dirKey!, 0)" /><div class="eye" :style="eyeStyle(seg.dirKey!, 1)" /></template></div>
-            <div v-if="mode === 'magnet'" v-for="(f, i) in players[bi]?.smoothFoods ?? []" :key="'mf'+i" class="magnet-food" />
+            <template v-if="mode === 'magnet'">
+              <div v-for="(f, i) in players[bi]?.smoothFoods ?? []" :key="'mf'+i" class="magnet-food" />
+            </template>
           </div>
         </div>
       </template>
