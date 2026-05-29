@@ -362,17 +362,24 @@ function tick() {
       pl.foods.forEach(f => {
         const dx = head.x - f.x, dy = head.y - f.y
         if (dx === 0 && dy === 0) return
-        if (Math.abs(dx) <= 1 && Math.abs(dy) <= 1) {
+        if (Math.abs(dx) <= 3 && Math.abs(dy) <= 3) {
           const stepX = dx === 0 ? 0 : (dx > 0 ? 1 : -1)
           const stepY = dy === 0 ? 0 : (dy > 0 ? 1 : -1)
           const nx = f.x + stepX, ny = f.y + stepY
-          if (!pl.snake.some(s => s.x === nx && s.y === ny) &&
+          if (!pl.snake.some((s, si) => si > 0 && s.x === nx && s.y === ny) &&
               !obstacles.value.some(o => o.x === nx && o.y === ny) &&
               !pl.foods.some(other => other !== f && other.x === nx && other.y === ny)) {
             f.x = nx; f.y = ny
           }
         }
       })
+      // eat any food now on head
+      for (let fi = pl.foods.length - 1; fi >= 0; fi--) {
+        if (pl.foods[fi]!.x === head.x && pl.foods[fi]!.y === head.y) {
+          pl.score++
+          pl.foods.splice(fi, 1)
+        }
+      }
     } else if (pl.magnetUntil > 0) {
       pl.magnetUntil = 0
     }
