@@ -407,22 +407,13 @@ function tickCTF() {
     })
 
     if (isInBase(next.x, next.y, i)) {
+      let total = 0
       ctfFlags.value.forEach(f => {
         if (f.carriedBy !== i) return
-        if (f.type === 'center') {
-          pl.score++; f.carriedBy = null
-          const p = randomFreePos(players.value[0]!); f.x = p.x; f.y = p.y
-          addScoreAnim('+1', next.x, next.y, i)
-        } else if (f.owner !== i) {
-          pl.score += 3; f.carriedBy = null
-          const base = CTF_BASES[f.owner]!; f.x = base.x + 1; f.y = base.y + 1
-          addScoreAnim('+3', next.x, next.y, i)
-        } else {
-          pl.score++; f.carriedBy = null
-          const base = CTF_BASES[f.owner]!; f.x = base.x + 1; f.y = base.y + 1
-          addScoreAnim('+1', next.x, next.y, i)
-        }
+        if (f.type === 'center') { total++; f.carriedBy = null; const p = randomFreePos(players.value[0]!); f.x = p.x; f.y = p.y }
+        else { total += f.owner !== i ? 3 : 1; f.carriedBy = null; const base = CTF_BASES[f.owner]!; f.x = base.x + 1; f.y = base.y + 1 }
       })
+      if (total) { pl.score += total; addScoreAnim('+'+total, next.x, next.y, i) }
     }
     pl.snake.pop()
   })
