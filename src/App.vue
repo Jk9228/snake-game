@@ -2,6 +2,7 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 
 const SIZE = 20
+const CS = 31
 
 interface Pos { x: number; y: number }
 
@@ -144,7 +145,7 @@ let animId = 0
 
 function addScoreAnim(text: string, cellX: number, cellY: number, pi: number) {
   const id = ++animId
-  scoreAnims.value.push({ id, text, x: cellX * 25, y: cellY * 25, pi })
+  scoreAnims.value.push({ id, text, x: cellX * CS, y: cellY * CS, pi })
   setTimeout(() => { scoreAnims.value = scoreAnims.value.filter(a => a.id !== id) }, 900)
 }
 
@@ -296,8 +297,8 @@ const segmentStyles = computed(() => {
     return pl.snake.map((seg, i) => {
       const src = pl.prevSnake?.[i]
       const style = src
-        ? `transform:translate(${src.x * 25}px,${src.y * 25}px)`
-        : `transform:translate(${seg.x * 25}px,${seg.y * 25}px)`
+        ? `transform:translate(${src.x * CS}px,${src.y * CS}px)`
+        : `transform:translate(${seg.x * CS}px,${seg.y * CS}px)`
       return i === 0
         ? { head: true, style, dirKey: pl.dirKey, magnet }
         : { head: false, style }
@@ -625,9 +626,9 @@ function updateSegmentPositions() {
         if (prev) {
           const px = Math.max(0, Math.min(SIZE - 1, prev.x + (seg.x - prev.x) * visualProgress))
           const py = Math.max(0, Math.min(SIZE - 1, prev.y + (seg.y - prev.y) * visualProgress))
-          el.style.transform = `translate(${px * 25}px, ${py * 25}px)`
+          el.style.transform = `translate(${px * CS}px, ${py * CS}px)`
         } else {
-          el.style.transform = `translate(${seg.x * 25}px, ${seg.y * 25}px)`
+          el.style.transform = `translate(${seg.x * CS}px, ${seg.y * CS}px)`
         }
       }
     })
@@ -749,7 +750,7 @@ onUnmounted(() => {
           <div class="board">
             <div v-for="(cell, i) in cells[bi]" :key="i" class="cell" :class="cell.cls" />
             <template v-if="mode === 'magnet'">
-              <div v-for="(f, i) in players[bi]?.smoothFoods ?? []" :key="'mf'+i" class="magnet-food" :style="{ transform: `translate(${f.x * 25 - 12.5}px, ${f.y * 25 - 12.5}px)` }" />
+              <div v-for="(f, i) in players[bi]?.smoothFoods ?? []" :key="'mf'+i" class="magnet-food" :style="{ transform: `translate(${f.x * CS - CS / 2}px, ${f.y * CS - CS / 2}px)` }" />
             </template>
           </div>
           <div class="snake-container">
@@ -882,19 +883,19 @@ body{display:flex;justify-content:center;align-items:center;min-height:100vh;bac
 .game-container{display:flex;align-items:flex-start;gap:36px;padding:24px;background:#16213e;border-radius:16px;box-shadow:0 8px 32px rgba(0,0,0,.4)}
 .boards{display:flex;gap:24px}
 .board-wrapper{position:relative;border:3px solid #0f3460;border-radius:8px;overflow:hidden;background:#0a0a23}
-.board{display:grid;grid-template-columns:repeat(20,25px);grid-template-rows:repeat(20,25px);position:relative}
-.cell{width:25px;height:25px;box-shadow:inset 0 0 0 1px #1a1a3e}
+.board{display:grid;grid-template-columns:repeat(20,31px);grid-template-rows:repeat(20,31px);position:relative}
+.cell{width:31px;height:31px;box-shadow:inset 0 0 0 1px #1a1a3e}
 .cell.food{background:#f87171;box-shadow:none;border-radius:50%;animation:pulse .8s ease-in-out infinite alternate}
-.magnet-food{position:absolute;width:25px;height:25px;border-radius:50%;background:#f87171;box-shadow:0 0 12px #f87171;z-index:5}
+.magnet-food{position:absolute;width:31px;height:31px;border-radius:50%;background:#f87171;box-shadow:0 0 12px #f87171;z-index:5}
 .cell.obstacle{background:#5b21b6;box-shadow:none;border-radius:2px}
 .snake-container{position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none}
-.snake-seg{position:absolute;width:27px;height:27px;border-radius:50%}
+.snake-seg{position:absolute;width:34px;height:34px;border-radius:50%}
 .snake-seg.p0{background:#4ade80}
 .snake-seg.p0.head{background:#22c55e;z-index:2}
 .snake-seg.p1{background:#fb923c}
 .snake-seg.p1.head{background:#f97316;z-index:2}
-.snake-seg.head .eye{position:absolute;width:5px;height:5px;background:#fff;border-radius:50%}
-.snake-seg.head .eye::after{content:'';position:absolute;width:2.5px;height:2.5px;background:#111;border-radius:50%;top:50%;left:50%;transform:translate(-50%,-50%)}
+.snake-seg.head .eye{position:absolute;width:6px;height:6px;background:#fff;border-radius:50%}
+.snake-seg.head .eye::after{content:'';position:absolute;width:3px;height:3px;background:#111;border-radius:50%;top:50%;left:50%;transform:translate(-50%,-50%)}
 @keyframes pulse{from{transform:scale(.8)}to{transform:scale(1)}}
 .player-panel{display:flex;flex-direction:column;align-items:center;gap:8px}
 .player-label{font-size:13px;font-weight:700;color:#e94560;letter-spacing:2px}
