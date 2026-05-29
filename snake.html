@@ -410,7 +410,11 @@ function start() {
 }
 
 function tick() {
-  if (players.every(p => p.gameOver)) { started=false; return }
+  if (players.every(p => p.gameOver)) {
+    started=false
+    if (mode === 'ctf' && ctfWinner === null) infoEl.innerHTML = '<p class="game-over">GAME OVER</p><p style="margin-top:6px">Press <kbd>Space</kbd> to restart</p>'
+    return
+  }
   if (mode === 'ctf') { tickCTF(); return }
   players.forEach(pl => {
     if (pl.gameOver) return

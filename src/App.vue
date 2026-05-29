@@ -346,6 +346,19 @@ function ctfScatterFlags(pi: number) {
 }
 
 function tickCTF() {
+  // Process input queues for both players
+  players.value.forEach(pl => {
+    if (pl.gameOver) return
+    if (pl.inputQueue.length > 0 && pl.dirCooldown <= 0) {
+      const nextKey = pl.inputQueue.shift()!
+      pl.dir = keyToPos[nextKey]!
+      pl.dirKey = nextKey
+      pl.dirCooldown = 0
+    } else {
+      pl.dirCooldown--
+    }
+  })
+
   const moves = players.value.map(pl => {
     if (pl.gameOver) return null
     const head = pl.snake[0]!
@@ -411,7 +424,7 @@ function tickCTF() {
     if (pl.gameOver && ctfRespawnTimers.value[i] === 0) {
       const base = CTF_BASES[i]!
       pl.snake = [{ x: base.x + 1, y: base.y + 1 }]
-      pl.dir = i === 0 ? DIR.LEFT : DIR.RIGHT
+      pl.dir = i === 0 ? DIR.RIGHT : DIR.LEFT
       pl.dirKey = i === 0 ? 'LEFT' : 'RIGHT'
       pl.gameOver = false
       ctfRespawnTimers.value[i] = -1
@@ -654,7 +667,8 @@ onUnmounted(() => {
         <p v-if="!started && players.every(p => !p.gameOver)">Press <kbd>Space</kbd> to start</p>
         <template v-if="players.some(p => p.gameOver)">
           <p class="game-over" v-if="mode !== 'ctf'">GAME OVER</p>
-          <p class="game-over" v-else style="font-size:24px">P{{ (ctfWinner ?? 0) + 1 }} 獲勝!</p>
+          <p class="game-over" v-if="mode === 'ctf' && ctfWinner !== null" style="font-size:24px">P{{ ctfWinner + 1 }} 獲勝!</p>
+          <p class="game-over" v-else-if="mode === 'ctf'">GAME OVER</p>
           <p v-if="mode === 'speed' && gameOverRank" style="font-size:13px;color:#e94560">
             得分 {{ players[0]?.score }} | 最快 {{ speedMaxSpeed }}ms | 排名 #{{ gameOverRank.rank }}/{{ gameOverRank.total }}
           </p>
