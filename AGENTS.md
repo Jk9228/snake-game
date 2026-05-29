@@ -11,6 +11,30 @@
 | `npm run test:unit` | Vitest unit tests |
 | `npm run test:e2e` | Playwright E2E tests |
 
+## Git Setup (new computer)
+```powershell
+# 1. Install Git (via winget, requires admin)
+winget install --id Git.Git -e --source winget
+
+# 2. Navigate to project folder
+cd C:\path\to\snake-game-master
+
+# 3. Configure git
+git config user.email "your@email.com"
+git config user.name "YourGitHubUsername"
+
+# 4. Init + remote
+git init
+git remote add origin https://github.com/Jk9228/snake-game
+
+# 5. Pull, then commit & push
+git pull origin master --allow-unrelated-histories
+# (resolve conflicts if any)
+git add -A
+git commit -m "your message"
+git push -u origin master
+```
+
 ## Project Files
 - `snake.html` — Standalone HTML version (no toolchain needed)
 - `src/App.vue` — Vue 3 SFC version (Vite + TypeScript)
