@@ -615,14 +615,6 @@ function updateSegmentPositions() {
         }
       }
     })
-    if (mode.value === 'magnet') {
-      const wrapper = container.closest('.board-wrapper')!
-      const foods = wrapper.querySelectorAll<HTMLElement>('.magnet-food')
-      pl.smoothFoods.forEach((f, i) => {
-        const el = foods[i]
-        if (el) el.style.transform = `translate(${f.x * 25 - 12.5}px, ${f.y * 25 - 12.5}px)`
-      })
-    }
   })
 }
 
@@ -718,7 +710,7 @@ onUnmounted(() => {
           <div class="board">
             <div v-for="(cell, i) in cells[bi]" :key="i" class="cell" :class="cell.cls" />
             <template v-if="mode === 'magnet'">
-              <div v-for="(f, i) in players[bi]?.smoothFoods ?? []" :key="'mf'+i" class="magnet-food" />
+              <div v-for="(f, i) in players[bi]?.smoothFoods ?? []" :key="'mf'+i" class="magnet-food" :style="{ transform: `translate(${f.x * 25 - 12.5}px, ${f.y * 25 - 12.5}px)` }" />
             </template>
           </div>
           <div class="snake-container">
