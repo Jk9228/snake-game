@@ -148,6 +148,11 @@ let lanPeer: Peer | null = null
 let lanConn: DataConnection | null = null
 let lanClientConnected = false
 
+// Discovery server
+const lanDiscoveryIp = ref('')
+const lanRoomList = ref<{ id: string; name: string }[]>([])
+let discoveryTimer: ReturnType<typeof setTimeout> | null = null
+
 // CTF state
 const ctfFlags = ref<CTFFlag[]>([])
 const ctfTarget = ref(5)
@@ -664,7 +669,11 @@ function applyState(state: ReturnType<typeof serializeState>) {
   powerUps.value = state.powerUps
   started.value = state.started
   curInt = state.curInt
-  lastTick = state.lastTick
+  if (lanMode.value === 'lan' && lanRole.value === 'client') {
+    lastTick = performance.now()
+  } else {
+    lastTick = state.lastTick
+  }
   ctfFlags.value = state.ctfFlags || []
   ctfWinner.value = state.ctfWinner ?? null
   ctfRespawnTimers.value = state.ctfRespawnTimers || [-1, -1]
@@ -687,6 +696,9 @@ function lanHost() {
       lanConnected.value = true
       lanRoomId.value = id
       lanStatus.value = `房間 ID: ${id}`
+      if (lanDiscoveryIp.value) {
+        fetch(`http://${lanDiscoveryIp.value}:3456/register`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, name: `房-${id.slice(0, 5)}` }) }).catch(() => {})
+      }
       lanPeer!.on('connection', (conn) => {
         lanConn = conn
         lanConn.on('data', (data: unknown) => {
@@ -755,11 +767,31 @@ function lanJoin() {
 
 function lanDisconnect() {
   if (lanConn) { try { lanConn.close() } catch {}; lanConn = null }
+  const wasHost = lanRole.value === 'host'
+  const myId = lanRoomId.value
   if (lanPeer) { lanPeer.destroy(); lanPeer = null }
   lanRole.value = 'none'
   lanConnected.value = false
   lanClientConnected = false
   lanRoomId.value = ''
+  if (discoveryTimer) { clearTimeout(discoveryTimer); discoveryTimer = null }
+  if (wasHost && myId && lanDiscoveryIp.value) {
+    fetch(`http://${lanDiscoveryIp.value}:3456/unregister`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: myId }) }).catch(() => {})
+  }
+}
+
+function fetchRooms() {
+  if (!lanDiscoveryIp.value) return
+  fetch(`http://${lanDiscoveryIp.value}:3456/rooms`)
+    .then(r => r.json()).then(list => { lanRoomList.value = list })
+    .catch(() => { lanRoomList.value = [] })
+  if (discoveryTimer) clearTimeout(discoveryTimer)
+  discoveryTimer = setTimeout(fetchRooms, 5000)
+}
+
+function lanJoinId(id: string) {
+  lanRoomId.value = id
+  lanJoin()
 }
 
 function queueDir(pl: Player, newDir: string) {
@@ -891,6 +923,7 @@ onUnmounted(() => {
   if (timer) clearTimeout(timer)
   cancelAnimationFrame(rafId)
   lanDisconnect()
+  if (discoveryTimer) clearTimeout(discoveryTimer)
 })
 </script>
 
@@ -994,6 +1027,18 @@ onUnmounted(() => {
                 <input v-model="lanRoomId" placeholder="房間 ID" class="lan-ip-input" />
                 <button class="lan-btn lan-btn-primary" @click="lanJoin()">加入</button>
               </div>
+            </div>
+            <div class="lan-discovery">
+              <div class="lan-join-row">
+                <input v-model="lanDiscoveryIp" placeholder="搜尋伺服器 IP" class="lan-ip-input" />
+                <button class="lan-btn lan-btn-primary" @click="fetchRooms()">搜尋</button>
+              </div>
+              <div v-if="lanRoomList.length > 0" class="lan-room-list">
+                <div v-for="room in lanRoomList" :key="room.id" class="lan-room-item" @click="lanJoinId(room.id)">
+                  {{ room.name }}
+                </div>
+              </div>
+              <p v-if="lanDiscoveryIp && lanRoomList.length === 0" class="lan-status">無房間</p>
             </div>
             <p class="lan-status">{{ lanStatus }}</p>
           </template>
@@ -1183,6 +1228,10 @@ kbd{display:inline-block;padding:2px 7px;font-size:13px;font-family:inherit;back
 .lan-ip-input{width:90px;padding:4px 8px;font-size:12px;font-weight:600;font-family:inherit;text-align:center;background:#1a1a4e;border:2px solid #334466;border-radius:6px;color:#ccddee;outline:none}
 .lan-ip-input:focus{border-color:#60a5fa}
 .lan-status{font-size:11px;color:#667788;margin-top:4px}
+.lan-discovery{margin-top:6px}
+.lan-room-list{display:flex;flex-direction:column;gap:4px;margin-top:6px}
+.lan-room-item{padding:4px 8px;font-size:11px;font-weight:600;background:#1a1a4e;border:2px solid #334466;border-radius:6px;color:#8899aa;cursor:pointer;transition:all .15s}
+.lan-room-item:hover{border-color:#60a5fa;color:#ccddee}
 .lan-ok{color:#4ade80}
 .lan-warn{color:#fbbf24}
 </style>
