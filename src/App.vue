@@ -642,6 +642,7 @@ function serializeState() {
     lastTick,
     mode: mode.value,
     initSpeed: initSpeed.value,
+    ctfTarget: ctfTarget.value,
     ctfFlags: ctfFlags.value.map(f => ({ ...f })),
     ctfWinner: ctfWinner.value,
     ctfRespawnTimers: [...ctfRespawnTimers.value],
@@ -682,6 +683,8 @@ function applyState(state: ReturnType<typeof serializeState>) {
   }
   ctfFlags.value = state.ctfFlags || []
   ctfWinner.value = state.ctfWinner ?? null
+  initSpeed.value = state.initSpeed
+  ctfTarget.value = state.ctfTarget ?? 5
   ctfRespawnTimers.value = state.ctfRespawnTimers || [-1, -1]
   ctfEncircleCooldown.value = state.ctfEncircleCooldown || [-1, -1]
   scoreAnims.value = state.scoreAnims || []
