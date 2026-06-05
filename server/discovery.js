@@ -1,6 +1,8 @@
 import { createServer } from 'http'
+import dgram from 'dgram'
 
-const PORT = parseInt(process.argv[2]) || 3456
+const HTTP_PORT = parseInt(process.argv[2]) || 3456
+const UDP_PORT = 3457
 const rooms = new Map()
 
 const srv = createServer((req, res) => {
@@ -46,4 +48,16 @@ const srv = createServer((req, res) => {
   res.writeHead(404); res.end()
 })
 
-srv.listen(PORT, () => console.log(`Discovery server on port ${PORT}`))
+srv.listen(HTTP_PORT, () => console.log(`Discovery server on port ${HTTP_PORT}`))
+
+const udp = dgram.createSocket('udp4')
+udp.on('message', (msg, rinfo) => {
+  if (msg.toString() === 'SNAKE_DISCOVER') {
+    const resp = Buffer.from('SNAKE_DISCOVER_ACK')
+    udp.send(resp, 0, resp.length, rinfo.port, rinfo.address)
+  }
+})
+udp.bind(UDP_PORT, () => {
+  udp.setBroadcast(true)
+  console.log(`UDP discovery on port ${UDP_PORT}`)
+})

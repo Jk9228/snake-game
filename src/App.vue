@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import Peer from 'peerjs'
 import type { DataConnection } from 'peerjs'
 
@@ -148,8 +148,7 @@ let lanPeer: Peer | null = null
 let lanConn: DataConnection | null = null
 let lanClientConnected = false
 
-// Discovery server
-const lanDiscoveryIp = ref('')
+// Auto discovery
 const lanRoomList = ref<{ id: string; name: string }[]>([])
 let discoveryTimer: ReturnType<typeof setTimeout> | null = null
 
@@ -696,9 +695,7 @@ function lanHost() {
       lanConnected.value = true
       lanRoomId.value = id
       lanStatus.value = `房間 ID: ${id}`
-      if (lanDiscoveryIp.value) {
-        fetch(`http://${lanDiscoveryIp.value}:3456/register`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, name: `房-${id.slice(0, 5)}` }) }).catch(() => {})
-      }
+      fetch(`http://localhost:3456/register`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, name: `房-${id.slice(0, 5)}` }) }).catch(() => {})
       lanPeer!.on('connection', (conn) => {
         lanConn = conn
         lanConn.on('data', (data: unknown) => {
@@ -775,16 +772,15 @@ function lanDisconnect() {
   lanClientConnected = false
   lanRoomId.value = ''
   if (discoveryTimer) { clearTimeout(discoveryTimer); discoveryTimer = null }
-  if (wasHost && myId && lanDiscoveryIp.value) {
-    fetch(`http://${lanDiscoveryIp.value}:3456/unregister`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: myId }) }).catch(() => {})
+  if (wasHost && myId) {
+    fetch(`http://localhost:3456/unregister`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: myId }) }).catch(() => {})
   }
 }
 
 function fetchRooms() {
-  if (!lanDiscoveryIp.value) return
-  fetch(`http://${lanDiscoveryIp.value}:3456/rooms`)
+  fetch('/api/rooms')
     .then(r => r.json()).then(list => { lanRoomList.value = list })
-    .catch(() => { lanRoomList.value = [] })
+    .catch(() => {})
   if (discoveryTimer) clearTimeout(discoveryTimer)
   discoveryTimer = setTimeout(fetchRooms, 5000)
 }
@@ -793,6 +789,14 @@ function lanJoinId(id: string) {
   lanRoomId.value = id
   lanJoin()
 }
+
+watch(lanMode, (val) => {
+  if (val === 'lan' && !lanConnected.value) fetchRooms()
+  if (val === 'local' && discoveryTimer) { clearTimeout(discoveryTimer); discoveryTimer = null }
+})
+watch(lanConnected, (val) => {
+  if (!val && lanMode.value === 'lan') fetchRooms()
+})
 
 function queueDir(pl: Player, newDir: string) {
   if (pl.inputQueue.length >= 2) return
@@ -916,6 +920,7 @@ onMounted(() => {
   reset()
   rafId = requestAnimationFrame(rafLoop)
   window.addEventListener('keydown', onKey)
+  if (lanMode.value === 'lan') fetchRooms()
 })
 
 onUnmounted(() => {
@@ -1029,16 +1034,13 @@ onUnmounted(() => {
               </div>
             </div>
             <div class="lan-discovery">
-              <div class="lan-join-row">
-                <input v-model="lanDiscoveryIp" placeholder="搜尋伺服器 IP" class="lan-ip-input" />
-                <button class="lan-btn lan-btn-primary" @click="fetchRooms()">搜尋</button>
-              </div>
               <div v-if="lanRoomList.length > 0" class="lan-room-list">
                 <div v-for="room in lanRoomList" :key="room.id" class="lan-room-item" @click="lanJoinId(room.id)">
                   {{ room.name }}
                 </div>
               </div>
-              <p v-if="lanDiscoveryIp && lanRoomList.length === 0" class="lan-status">無房間</p>
+              <p v-if="lanRoomList.length === 0" class="lan-status">搜尋中...</p>
+              <button class="lan-btn lan-btn-sm" @click="fetchRooms()">重新搜尋</button>
             </div>
             <p class="lan-status">{{ lanStatus }}</p>
           </template>
