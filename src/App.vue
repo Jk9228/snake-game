@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue'
+import Peer from 'peerjs'
+import type { DataConnection } from 'peerjs'
 
 const SIZE = 20
 const CS = 31
@@ -136,13 +138,14 @@ let speedStartTime: number | null = null
 let speedMaxSpeed = 150
 let speedSaved = false
 
-// LAN mode
+// LAN mode (PeerJS)
 const lanMode = ref<'local' | 'lan'>('local')
 const lanRole = ref<'none' | 'host' | 'client'>('none')
 const lanConnected = ref(false)
-const lanIp = ref('')
+const lanRoomId = ref('')
 const lanStatus = ref('')
-let lanWs: WebSocket | null = null
+let lanPeer: Peer | null = null
+let lanConn: DataConnection | null = null
 let lanClientConnected = false
 
 // CTF state
@@ -342,8 +345,8 @@ function reset() {
   players.value.forEach(pl => { pl.gameOver = false; pl.score = 0; if (mode.value !== 'ctf') spawnFoods(pl) })
   if ((mode.value === 'single' && DIFFICULTIES[difficulty.value]!.hasObstacles) || mode.value === 'free') generateObstacles(players.value[0]!)
   if (mode.value === 'speed') generateObstacles(players.value[0]!)
-  if (lanMode.value === 'lan' && lanRole.value === 'host' && lanWs && lanWs.readyState === WebSocket.OPEN) {
-    lanWs.send(JSON.stringify({ type: 'state', ...serializeState() }))
+  if (lanMode.value === 'lan' && lanRole.value === 'host') {
+    lanSend({ type: 'state', ...serializeState() })
   }
 }
 
@@ -466,8 +469,8 @@ function tick() {
   if (mode.value === 'free') curInt = getFreeSpeed(players.value[0]!.score)
   else if (mode.value === 'speed') { curInt = getSpeedSpeed(players.value[0]!.score); speedMaxSpeed = Math.min(speedMaxSpeed, curInt) }
   else curInt = initSpeed.value
-  if (lanMode.value === 'lan' && lanRole.value === 'host' && lanWs && lanWs.readyState === WebSocket.OPEN) {
-    lanWs.send(JSON.stringify({ type: 'state', ...serializeState() }))
+  if (lanMode.value === 'lan' && lanRole.value === 'host') {
+    lanSend({ type: 'state', ...serializeState() })
   }
   timer = setTimeout(tick, curInt)
 }
@@ -576,8 +579,8 @@ function tickCTF() {
 
   lastTick = performance.now(); curInt = initSpeed.value
   if (!started.value) return
-  if (lanMode.value === 'lan' && lanRole.value === 'host' && lanWs && lanWs.readyState === WebSocket.OPEN) {
-    lanWs.send(JSON.stringify({ type: 'state', ...serializeState() }))
+  if (lanMode.value === 'lan' && lanRole.value === 'host') {
+    lanSend({ type: 'state', ...serializeState() })
   }
   timer = setTimeout(tickCTF, curInt)
 }
@@ -669,77 +672,94 @@ function applyState(state: ReturnType<typeof serializeState>) {
   scoreAnims.value = state.scoreAnims || []
 }
 
-function lanConnect(url: string, role: 'host' | 'client') {
+function lanSend(data: Record<string, unknown>) {
+  if (lanConn && lanConn.open) {
+    try { lanConn.send(data) } catch {}
+  }
+}
+
+function lanHost() {
+  lanStatus.value = '正在開房...'
   try {
-    lanWs = new WebSocket(url)
-    lanWs.onopen = () => {
-      lanWs!.send(JSON.stringify({ type: 'join', role }))
-    }
-    lanWs.onmessage = (ev) => {
-      const msg = JSON.parse(ev.data)
-      switch (msg.type) {
-        case 'joined':
-          lanRole.value = msg.role
-          lanConnected.value = true
-          lanStatus.value = msg.role === 'host' ? '等待玩家加入...' : '已連線'
-          break
-        case 'client-joined':
-          lanClientConnected = true
-          lanStatus.value = '玩家已加入，按 Space 開始'
-          if (lanWs && lanWs.readyState === WebSocket.OPEN) {
-            lanWs.send(JSON.stringify({ type: 'state', ...serializeState() }))
-          }
-          break
-        case 'client-left':
-          lanClientConnected = false
-          lanStatus.value = '玩家已離開'
-          break
-        case 'disconnected':
-          lanStatus.value = '連線中斷'
-          lanDisconnect()
-          break
-        case 'input':
-          if (lanRole.value === 'host' && players.value[1]) {
+    lanPeer = new Peer()
+    lanPeer.on('open', (id) => {
+      lanRole.value = 'host'
+      lanConnected.value = true
+      lanRoomId.value = id
+      lanStatus.value = `房間 ID: ${id}`
+      lanPeer!.on('connection', (conn) => {
+        lanConn = conn
+        lanConn.on('data', (data: unknown) => {
+          const msg = data as Record<string, unknown>
+          if (msg.type === 'input' && players.value[1]) {
             const wasd: Record<string, string> = { W: 'UP', A: 'LEFT', S: 'DOWN', D: 'RIGHT' }
-            const dir = wasd[msg.key]
+            const dir = wasd[msg.key as string]
             if (dir) queueDir(players.value[1], dir)
           }
-          break
-        case 'state':
-          if (lanRole.value === 'client') applyState(msg)
-          break
-      }
-    }
-    lanWs.onclose = () => {
-      if (lanConnected.value) lanStatus.value = '連線中斷'
+        })
+        lanConn.on('close', () => {
+          lanClientConnected = false
+          lanStatus.value = '玩家已離開'
+        })
+        lanClientConnected = true
+        lanStatus.value = '玩家已加入，按 Space 開始'
+        lanSend({ type: 'state', ...serializeState() })
+      })
+    })
+    lanPeer.on('error', () => {
+      lanStatus.value = '開房失敗'
       lanDisconnect()
-    }
-    lanWs.onerror = () => {
+    })
+  } catch {
+    lanStatus.value = '開房失敗'
+  }
+}
+
+function lanJoin() {
+  if (!lanRoomId.value) return
+  lanStatus.value = '正在連線...'
+  try {
+    lanPeer = new Peer()
+    lanPeer.on('open', () => {
+      const conn = lanPeer!.connect(lanRoomId.value, { reliable: true })
+      conn.on('open', () => {
+        lanConn = conn
+        lanRole.value = 'client'
+        lanConnected.value = true
+        lanStatus.value = '已連線'
+        conn.on('data', (data: unknown) => {
+          const msg = data as Record<string, unknown>
+          if (msg.type === 'state') applyState(msg as unknown as ReturnType<typeof serializeState>)
+        })
+        conn.on('close', () => {
+          if (lanConnected.value) lanStatus.value = '連線中斷'
+          lanDisconnect()
+        })
+      })
+      conn.on('error', () => {
+        lanStatus.value = '連線失敗'
+        lanDisconnect()
+      })
+      setTimeout(() => {
+        if (!lanConnected.value) { lanStatus.value = '連線超時'; lanDisconnect() }
+      }, 15000)
+    })
+    lanPeer.on('error', () => {
       lanStatus.value = '連線失敗'
-    }
-    if (role === 'host') lanStatus.value = '正在開房...'
-    else lanStatus.value = '正在連線...'
+      lanDisconnect()
+    })
   } catch {
     lanStatus.value = '連線失敗'
   }
 }
 
 function lanDisconnect() {
-  if (lanWs) { lanWs.close(); lanWs = null }
+  if (lanConn) { try { lanConn.close() } catch {}; lanConn = null }
+  if (lanPeer) { lanPeer.destroy(); lanPeer = null }
   lanRole.value = 'none'
   lanConnected.value = false
   lanClientConnected = false
-}
-
-function lanHost() {
-  const port = 3000
-  lanConnect(`ws://localhost:${port}`, 'host')
-}
-
-function lanJoin() {
-  if (!lanIp.value) return
-  const port = 3000
-  lanConnect(`ws://${lanIp.value}:${port}`, 'client')
+  lanRoomId.value = ''
 }
 
 function queueDir(pl: Player, newDir: string) {
@@ -770,9 +790,7 @@ function onKey(e: KeyboardEvent) {
       e.preventDefault()
       const dir = wasd[e.code.slice(3)]
       if (dir && players.value[1] && !players.value[1].gameOver) {
-        if (lanWs && lanWs.readyState === WebSocket.OPEN) {
-          lanWs.send(JSON.stringify({ type: 'input', key: e.code.slice(3) }))
-        }
+        lanSend({ type: 'input', key: e.code.slice(3) })
       }
     }
     return
@@ -872,7 +890,7 @@ onUnmounted(() => {
   window.removeEventListener('keydown', onKey)
   if (timer) clearTimeout(timer)
   cancelAnimationFrame(rafId)
-  if (lanWs) lanWs.close()
+  lanDisconnect()
 })
 </script>
 
@@ -973,7 +991,7 @@ onUnmounted(() => {
             <div class="lan-connect">
               <button class="lan-btn lan-btn-primary" @click="lanHost()">開房</button>
               <div class="lan-join-row">
-                <input v-model="lanIp" placeholder="IP 位址" class="lan-ip-input" />
+                <input v-model="lanRoomId" placeholder="房間 ID" class="lan-ip-input" />
                 <button class="lan-btn lan-btn-primary" @click="lanJoin()">加入</button>
               </div>
             </div>
