@@ -1078,7 +1078,7 @@ onUnmounted(() => {
         <div v-if="mode === 'dual'" class="player-panel">
           <div class="player-label">
             {{ bi === 0 ? 'P2' : 'P1' }}
-            <kbd v-if="bi === 0 && !(lanMode === 'lan' && lanRole === 'client')">W A S D</kbd>
+            <kbd v-if="bi === 0 && lanMode !== 'lan'">W A S D</kbd>
             <kbd v-else>&uarr;&darr;&larr;&rarr;</kbd>
           </div>
           <div class="board-wrapper">
@@ -1240,7 +1240,7 @@ onUnmounted(() => {
       <div class="controls">
         <p class="label">CONTROLS</p>
         <p class="arrow-keys" v-if="mode === 'single' || mode === 'free' || mode === 'speed' || mode === 'magnet'"><kbd>&uarr;&darr;&larr;&rarr;</kbd></p>
-        <p class="arrow-keys" v-else-if="lanMode === 'lan' && lanRole === 'client'"><kbd>&uarr;&darr;&larr;&rarr;</kbd></p>
+        <p class="arrow-keys" v-else-if="lanMode === 'lan'"><kbd>&uarr;&darr;&larr;&rarr;</kbd></p>
         <p class="arrow-keys" v-else><kbd>&uarr;&darr;&larr;&rarr;</kbd> <kbd>W A S D</kbd></p>
       </div>
       <div v-if="mode === 'speed'" class="leaderboard">
