@@ -138,7 +138,8 @@ let speedStartTime: number | null = null
 let speedMaxSpeed = 150
 let speedSaved = false
 
-// LAN mode (PeerJS)
+// LAN mode (PeerJS lobby discovery)
+const LOBBY_ID = 'snake-lobby'
 const lanMode = ref<'local' | 'lan'>('local')
 const lanRole = ref<'none' | 'host' | 'client'>('none')
 const lanConnected = ref(false)
@@ -148,9 +149,15 @@ let lanPeer: Peer | null = null
 let lanConn: DataConnection | null = null
 let lanClientConnected = false
 
-// Auto discovery
-const lanRoomList = ref<{ id: string; name: string }[]>([])
-let discoveryTimer: ReturnType<typeof setTimeout> | null = null
+// Lobby discovery
+const lanRoomList = ref<{ peerId: string; name: string }[]>([])
+let lobbyPeer: Peer | null = null
+let lobbyConn: DataConnection | null = null
+let lobbyHeartbeat: ReturnType<typeof setInterval> | null = null
+let lobbyCleanup: ReturnType<typeof setInterval> | null = null
+let lobbyFetchTimer: ReturnType<typeof setTimeout> | null = null
+let lobbyConnPeer: Peer | null = null
+const lobbyRooms = new Map<string, { peerId: string; name: string; ts: number }>()
 
 // CTF state
 const ctfFlags = ref<CTFFlag[]>([])
@@ -695,7 +702,7 @@ function lanHost() {
       lanConnected.value = true
       lanRoomId.value = id
       lanStatus.value = `房間 ID: ${id}`
-      fetch(`http://localhost:3456/register`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, name: `房-${id.slice(0, 5)}` }) }).catch(() => {})
+      registerWithLobby(id)
       lanPeer!.on('connection', (conn) => {
         lanConn = conn
         lanConn.on('data', (data: unknown) => {
@@ -764,25 +771,125 @@ function lanJoin() {
 
 function lanDisconnect() {
   if (lanConn) { try { lanConn.close() } catch {}; lanConn = null }
-  const wasHost = lanRole.value === 'host'
-  const myId = lanRoomId.value
   if (lanPeer) { lanPeer.destroy(); lanPeer = null }
+  unregisterFromLobby()
   lanRole.value = 'none'
   lanConnected.value = false
   lanClientConnected = false
   lanRoomId.value = ''
-  if (discoveryTimer) { clearTimeout(discoveryTimer); discoveryTimer = null }
-  if (wasHost && myId) {
-    fetch(`http://localhost:3456/unregister`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: myId }) }).catch(() => {})
+}
+
+function lobbySend(data: Record<string, unknown>) {
+  if (lobbyConn && lobbyConn.open) {
+    try { lobbyConn.send(data) } catch {}
   }
 }
 
+function autoHostLobby() {
+  if (lobbyPeer) return
+  lobbyPeer = new Peer(LOBBY_ID)
+  lobbyPeer.on('open', () => {
+    lobbyCleanup = setInterval(() => {
+      const now = Date.now()
+      let changed = false
+      for (const [key, r] of lobbyRooms) {
+        if (now - r.ts > 8000) { lobbyRooms.delete(key); changed = true }
+      }
+      if (changed) broadcastRooms()
+    }, 3000)
+  })
+  lobbyPeer.on('connection', (c) => {
+    c.on('data', (data: unknown) => {
+      const msg = data as Record<string, unknown>
+      switch (msg.type) {
+        case 'register':
+          lobbyRooms.set(msg.peerId as string, { peerId: msg.peerId as string, name: (msg.name as string) || '房間', ts: Date.now() })
+          c.send({ type: 'registered', ok: true })
+          broadcastRooms()
+          break
+        case 'unregister':
+          lobbyRooms.delete(msg.peerId as string)
+          broadcastRooms()
+          break
+        case 'list':
+          c.send({ type: 'room_list', rooms: Array.from(lobbyRooms.values()).filter(r => Date.now() - r.ts <= 8000) })
+          break
+        case 'ping':
+          for (const r of lobbyRooms.values()) { if (r.peerId === msg.peerId) { r.ts = Date.now(); break } }
+          c.send({ type: 'pong' })
+          break
+      }
+    })
+    c.on('close', () => {
+      for (const [key, r] of lobbyRooms) { if (r.peerId === c.peer) { lobbyRooms.delete(key); broadcastRooms(); break } }
+    })
+  })
+  lobbyPeer.on('error', () => { lobbyPeer = null })
+}
+
+function registerWithLobby(hostPeerId: string) {
+  lobbyConnPeer = new Peer()
+  lobbyConnPeer.on('open', () => {
+    const c = lobbyConnPeer!.connect(LOBBY_ID, { reliable: true })
+    c.on('open', () => {
+      lobbyConn = c
+      c.send({ type: 'register', peerId: hostPeerId, name: `房-${hostPeerId.slice(0, 5)}` })
+      lobbyHeartbeat = setInterval(() => { try { c.send({ type: 'ping', peerId: hostPeerId }) } catch {} }, 3000)
+    })
+    c.on('error', () => lobbyConnPeer?.destroy())
+    setTimeout(() => { if (!lobbyConn) lobbyConnPeer?.destroy() }, 5000)
+  })
+  lobbyConnPeer.on('error', () => {})
+}
+
+function unregisterFromLobby() {
+  if (lobbyHeartbeat) { clearInterval(lobbyHeartbeat); lobbyHeartbeat = null }
+  if (lobbyConn) {
+    try { lobbyConn.send({ type: 'unregister' }) } catch {}
+    lobbyConn.close()
+    lobbyConn = null
+  }
+  if (lobbyConnPeer) { lobbyConnPeer.destroy(); lobbyConnPeer = null }
+}
+
+function stopLobby() {
+  if (lobbyCleanup) { clearInterval(lobbyCleanup); lobbyCleanup = null }
+  if (lobbyPeer) { lobbyPeer.destroy(); lobbyPeer = null }
+  lobbyRooms.clear()
+}
+
+function broadcastRooms() {
+  lanRoomList.value = Array.from(lobbyRooms.values()).filter(r => Date.now() - r.ts <= 8000)
+}
+
 function fetchRooms() {
-  fetch('/api/rooms')
-    .then(r => r.json()).then(list => { lanRoomList.value = list })
-    .catch(() => {})
-  if (discoveryTimer) clearTimeout(discoveryTimer)
-  discoveryTimer = setTimeout(fetchRooms, 5000)
+  if (lobbyConn) {
+    lobbySend({ type: 'list' })
+  } else {
+    const p = new Peer()
+    const timeout = setTimeout(() => { p.destroy(); lanRoomList.value = Array.from(lobbyRooms.values()).filter(r => Date.now() - r.ts <= 8000) }, 3000)
+    p.on('open', () => {
+      const c = p.connect(LOBBY_ID, { reliable: true })
+      c.on('open', () => {
+        c.send({ type: 'list' })
+        c.on('data', (data: unknown) => {
+          const msg = data as Record<string, unknown>
+          if (msg.type === 'room_list') {
+            clearTimeout(timeout)
+            const rooms = (msg.rooms || []) as { peerId: string; name: string }[]
+            rooms.forEach(r => lobbyRooms.set(r.peerId, { ...r, ts: Date.now() }))
+            lanRoomList.value = rooms
+            c.close()
+            p.destroy()
+          }
+        })
+      })
+      c.on('error', () => { clearTimeout(timeout); p.destroy() })
+    })
+    p.on('error', () => { clearTimeout(timeout) })
+  }
+  if (lobbyFetchTimer) clearTimeout(lobbyFetchTimer)
+  lobbyFetchTimer = setTimeout(fetchRooms, 5000)
 }
 
 function lanJoinId(id: string) {
@@ -791,8 +898,8 @@ function lanJoinId(id: string) {
 }
 
 watch(lanMode, (val) => {
-  if (val === 'lan' && !lanConnected.value) fetchRooms()
-  if (val === 'local' && discoveryTimer) { clearTimeout(discoveryTimer); discoveryTimer = null }
+  if (val === 'lan') { autoHostLobby(); fetchRooms() }
+  if (val === 'local') { stopLobby(); if (lobbyFetchTimer) { clearTimeout(lobbyFetchTimer); lobbyFetchTimer = null } }
 })
 watch(lanConnected, (val) => {
   if (!val && lanMode.value === 'lan') fetchRooms()
@@ -928,7 +1035,8 @@ onUnmounted(() => {
   if (timer) clearTimeout(timer)
   cancelAnimationFrame(rafId)
   lanDisconnect()
-  if (discoveryTimer) clearTimeout(discoveryTimer)
+  stopLobby()
+  if (lobbyFetchTimer) clearTimeout(lobbyFetchTimer)
 })
 </script>
 
@@ -1035,7 +1143,7 @@ onUnmounted(() => {
             </div>
             <div class="lan-discovery">
               <div v-if="lanRoomList.length > 0" class="lan-room-list">
-                <div v-for="room in lanRoomList" :key="room.id" class="lan-room-item" @click="lanJoinId(room.id)">
+                <div v-for="room in lanRoomList" :key="room.peerId" class="lan-room-item" @click="lanJoinId(room.peerId)">
                   {{ room.name }}
                 </div>
               </div>
