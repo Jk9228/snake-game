@@ -136,6 +136,15 @@ let speedStartTime: number | null = null
 let speedMaxSpeed = 150
 let speedSaved = false
 
+// LAN mode
+const lanMode = ref<'local' | 'lan'>('local')
+const lanRole = ref<'none' | 'host' | 'client'>('none')
+const lanConnected = ref(false)
+const lanIp = ref('')
+const lanStatus = ref('')
+let lanWs: WebSocket | null = null
+let lanClientConnected = false
+
 // CTF state
 const ctfFlags = ref<CTFFlag[]>([])
 const ctfTarget = ref(5)
@@ -151,7 +160,7 @@ function addScoreAnim(text: string, cellX: number, cellY: number, pi: number) {
   setTimeout(() => { scoreAnims.value = scoreAnims.value.filter(a => a.id !== id) }, 900)
 }
 
-const leaderboard = computed(() => { lbVersion.value; return loadLeaderboard() })
+const leaderboard = computed((): LBEntry[] => lbVersion.value >= 0 ? loadLeaderboard() : loadLeaderboard())
 
 const currentSpeed = computed(() => {
   if (mode.value !== 'speed' || !players.value[0]) return 0
@@ -333,6 +342,9 @@ function reset() {
   players.value.forEach(pl => { pl.gameOver = false; pl.score = 0; if (mode.value !== 'ctf') spawnFoods(pl) })
   if ((mode.value === 'single' && DIFFICULTIES[difficulty.value]!.hasObstacles) || mode.value === 'free') generateObstacles(players.value[0]!)
   if (mode.value === 'speed') generateObstacles(players.value[0]!)
+  if (lanMode.value === 'lan' && lanRole.value === 'host' && lanWs && lanWs.readyState === WebSocket.OPEN) {
+    lanWs.send(JSON.stringify({ type: 'state', ...serializeState() }))
+  }
 }
 
 function start() {
@@ -454,6 +466,9 @@ function tick() {
   if (mode.value === 'free') curInt = getFreeSpeed(players.value[0]!.score)
   else if (mode.value === 'speed') { curInt = getSpeedSpeed(players.value[0]!.score); speedMaxSpeed = Math.min(speedMaxSpeed, curInt) }
   else curInt = initSpeed.value
+  if (lanMode.value === 'lan' && lanRole.value === 'host' && lanWs && lanWs.readyState === WebSocket.OPEN) {
+    lanWs.send(JSON.stringify({ type: 'state', ...serializeState() }))
+  }
   timer = setTimeout(tick, curInt)
 }
 
@@ -561,6 +576,9 @@ function tickCTF() {
 
   lastTick = performance.now(); curInt = initSpeed.value
   if (!started.value) return
+  if (lanMode.value === 'lan' && lanRole.value === 'host' && lanWs && lanWs.readyState === WebSocket.OPEN) {
+    lanWs.send(JSON.stringify({ type: 'state', ...serializeState() }))
+  }
   timer = setTimeout(tickCTF, curInt)
 }
 
@@ -573,6 +591,8 @@ function onGameOver(pl: Player) {
 
 function switchMode(m: 'single' | 'dual' | 'free' | 'speed' | 'ctf' | 'magnet') {
   if (timer) clearTimeout(timer)
+  if (lanConnected.value) lanDisconnect()
+  lanMode.value = 'local'
   mode.value = m
   if (m === 'single' || m === 'free' || m === 'speed' || m === 'magnet') {
     players.value = [makePlayer(10, 10, DIR.RIGHT)]
@@ -587,9 +607,155 @@ function switchMode(m: 'single' | 'dual' | 'free' | 'speed' | 'ctf' | 'magnet') 
   reset()
 }
 
+function serializeState() {
+  return {
+    players: players.value.map(p => ({
+      snake: p.snake.map(s => ({ ...s })),
+      prevSnake: p.prevSnake.map(s => ({ ...s })),
+      dir: { ...p.dir },
+      dirKey: p.dirKey,
+      score: p.score,
+      gameOver: p.gameOver,
+      foods: p.foods.map(f => ({ ...f })),
+      smoothFoods: p.smoothFoods.map(f => ({ ...f })),
+      magnetUntil: p.magnetUntil,
+      outOfBounds: p.outOfBounds,
+    })),
+    obstacles: obstacles.value.map(o => ({ ...o })),
+    powerUps: powerUps.value.map(p => ({ ...p })),
+    started: started.value,
+    curInt,
+    lastTick,
+    mode: mode.value,
+    initSpeed: initSpeed.value,
+    ctfFlags: ctfFlags.value.map(f => ({ ...f })),
+    ctfWinner: ctfWinner.value,
+    ctfRespawnTimers: [...ctfRespawnTimers.value],
+    ctfEncircleCooldown: [...ctfEncircleCooldown.value],
+    scoreAnims: scoreAnims.value.map(a => ({ ...a })),
+  }
+}
+
+function applyState(state: ReturnType<typeof serializeState>) {
+  if (players.value.length !== state.players.length) {
+    players.value = state.players.map((sp, i) => {
+      const dir = i === 0 ? { x: 1, y: 0 } : { x: -1, y: 0 }
+      return makePlayer(sp.snake[0]?.x ?? 10, sp.snake[0]?.y ?? 10, dir)
+    })
+  }
+  state.players.forEach((sp, i) => {
+    const p = players.value[i]
+    if (!p) return
+    p.snake = sp.snake
+    p.prevSnake = sp.prevSnake
+    p.dir = sp.dir
+    p.dirKey = sp.dirKey
+    p.score = sp.score
+    p.gameOver = sp.gameOver
+    p.foods = sp.foods
+    p.smoothFoods = sp.smoothFoods
+    p.magnetUntil = sp.magnetUntil
+    p.outOfBounds = sp.outOfBounds
+  })
+  obstacles.value = state.obstacles
+  powerUps.value = state.powerUps
+  started.value = state.started
+  curInt = state.curInt
+  lastTick = state.lastTick
+  ctfFlags.value = state.ctfFlags || []
+  ctfWinner.value = state.ctfWinner ?? null
+  ctfRespawnTimers.value = state.ctfRespawnTimers || [-1, -1]
+  ctfEncircleCooldown.value = state.ctfEncircleCooldown || [-1, -1]
+  scoreAnims.value = state.scoreAnims || []
+}
+
+function lanConnect(url: string, role: 'host' | 'client') {
+  try {
+    lanWs = new WebSocket(url)
+    lanWs.onopen = () => {
+      lanWs!.send(JSON.stringify({ type: 'join', role }))
+    }
+    lanWs.onmessage = (ev) => {
+      const msg = JSON.parse(ev.data)
+      switch (msg.type) {
+        case 'joined':
+          lanRole.value = msg.role
+          lanConnected.value = true
+          lanStatus.value = msg.role === 'host' ? '等待玩家加入...' : '已連線'
+          break
+        case 'client-joined':
+          lanClientConnected = true
+          lanStatus.value = '玩家已加入，按 Space 開始'
+          if (lanWs && lanWs.readyState === WebSocket.OPEN) {
+            lanWs.send(JSON.stringify({ type: 'state', ...serializeState() }))
+          }
+          break
+        case 'client-left':
+          lanClientConnected = false
+          lanStatus.value = '玩家已離開'
+          break
+        case 'disconnected':
+          lanStatus.value = '連線中斷'
+          lanDisconnect()
+          break
+        case 'input':
+          if (lanRole.value === 'host' && players.value[1]) {
+            const wasd: Record<string, string> = { W: 'UP', A: 'LEFT', S: 'DOWN', D: 'RIGHT' }
+            const dir = wasd[msg.key]
+            if (dir) queueDir(players.value[1], dir)
+          }
+          break
+        case 'state':
+          if (lanRole.value === 'client') applyState(msg)
+          break
+      }
+    }
+    lanWs.onclose = () => {
+      if (lanConnected.value) lanStatus.value = '連線中斷'
+      lanDisconnect()
+    }
+    lanWs.onerror = () => {
+      lanStatus.value = '連線失敗'
+    }
+    if (role === 'host') lanStatus.value = '正在開房...'
+    else lanStatus.value = '正在連線...'
+  } catch {
+    lanStatus.value = '連線失敗'
+  }
+}
+
+function lanDisconnect() {
+  if (lanWs) { lanWs.close(); lanWs = null }
+  lanRole.value = 'none'
+  lanConnected.value = false
+  lanClientConnected = false
+}
+
+function lanHost() {
+  const port = 3000
+  lanConnect(`ws://localhost:${port}`, 'host')
+}
+
+function lanJoin() {
+  if (!lanIp.value) return
+  const port = 3000
+  lanConnect(`ws://${lanIp.value}:${port}`, 'client')
+}
+
+function queueDir(pl: Player, newDir: string) {
+  if (pl.inputQueue.length >= 2) return
+  const last = pl.inputQueue.length > 0 ? pl.inputQueue[pl.inputQueue.length - 1]! : pl.dirKey
+  if (newDir === last || newDir === opposites[last]) return
+  pl.inputQueue.push(newDir)
+}
+
 function onKey(e: KeyboardEvent) {
   if (e.key === ' ') {
     e.preventDefault()
+    if (lanMode.value === 'lan') {
+      if (lanRole.value === 'client') return
+      if (!lanClientConnected) return
+    }
     if (started.value || players.value.some(p => p.gameOver) || ctfWinner.value !== null) { reset(); return }
     speedStartTime = performance.now()
     start()
@@ -598,17 +764,25 @@ function onKey(e: KeyboardEvent) {
 
   if (!started.value) return
 
-  function queueDir(pl: Player, newDir: string) {
-    if (pl.inputQueue.length >= 2) return
-    const last = pl.inputQueue.length > 0 ? pl.inputQueue[pl.inputQueue.length - 1]! : pl.dirKey
-    if (newDir === last || newDir === opposites[last]) return
-    pl.inputQueue.push(newDir)
+  if (lanMode.value === 'lan' && lanRole.value === 'client') {
+    const wasd: Record<string, string> = { W: 'UP', A: 'LEFT', S: 'DOWN', D: 'RIGHT' }
+    if (e.code.startsWith('Key')) {
+      e.preventDefault()
+      const dir = wasd[e.code.slice(3)]
+      if (dir && players.value[1] && !players.value[1].gameOver) {
+        if (lanWs && lanWs.readyState === WebSocket.OPEN) {
+          lanWs.send(JSON.stringify({ type: 'input', key: e.code.slice(3) }))
+        }
+      }
+    }
+    return
   }
 
   if (mode.value === 'single' || mode.value === 'free' || mode.value === 'speed' || mode.value === 'magnet') {
     if (e.key.startsWith('Arrow')) { e.preventDefault(); queueDir(players.value[0]!, e.key.slice(5).toUpperCase()) }
   } else {
     if (e.key.startsWith('Arrow')) { e.preventDefault(); if (!players.value[0]!.gameOver) queueDir(players.value[0]!, e.key.slice(5).toUpperCase()) }
+    if (lanMode.value === 'lan' && lanRole.value === 'host') return
     const wasd: Record<string, string> = { W: 'UP', A: 'LEFT', S: 'DOWN', D: 'RIGHT' }
     if (e.code.startsWith('Key')) { e.preventDefault(); const dir = wasd[e.code.slice(3)]; if (dir && players.value[1] && !players.value[1].gameOver) queueDir(players.value[1], dir) }
   }
@@ -640,13 +814,15 @@ function updateSegmentPositions() {
 function rafLoop(time: number) {
   if (started.value && lastTick > 0) {
     visualProgress = Math.min((time - lastTick) / curInt, 1)
-    const now = performance.now()
-    players.value.forEach(pl => {
-      if (pl.outOfBounds > 0 && now - pl.outOfBounds > 40) {
-        pl.gameOver = true; onGameOver(pl)
-      }
-    })
-    if (mode.value === 'magnet') {
+    if (lanMode.value !== 'lan' || lanRole.value !== 'client') {
+      const now = performance.now()
+      players.value.forEach(pl => {
+        if (pl.outOfBounds > 0 && now - pl.outOfBounds > 40) {
+          pl.gameOver = true; onGameOver(pl)
+        }
+      })
+    }
+    if (mode.value === 'magnet' && (lanMode.value !== 'lan' || lanRole.value !== 'client')) {
       players.value.forEach(pl => {
         if (pl.gameOver) return
         const head = pl.snake[0]!
@@ -696,6 +872,7 @@ onUnmounted(() => {
   window.removeEventListener('keydown', onKey)
   if (timer) clearTimeout(timer)
   cancelAnimationFrame(rafId)
+  if (lanWs) lanWs.close()
 })
 </script>
 
@@ -785,6 +962,27 @@ onUnmounted(() => {
         <div class="speed-input" v-if="mode !== 'free' && mode !== 'speed'">
           <p class="label">初始速度 (ms)</p>
           <input type="number" v-model.number="initSpeed" min="20" max="500" />
+        </div>
+        <div class="lan-section" v-if="mode === 'dual' || mode === 'ctf'">
+          <p class="label">連線方式</p>
+          <div class="lan-toggle">
+            <button :class="['lan-btn', { active: lanMode === 'local' }]" @click="lanMode = 'local'; lanDisconnect()">本機</button>
+            <button :class="['lan-btn', { active: lanMode === 'lan' }]" @click="lanMode = 'lan'">LAN</button>
+          </div>
+          <template v-if="lanMode === 'lan' && !lanConnected">
+            <div class="lan-connect">
+              <button class="lan-btn lan-btn-primary" @click="lanHost()">開房</button>
+              <div class="lan-join-row">
+                <input v-model="lanIp" placeholder="IP 位址" class="lan-ip-input" />
+                <button class="lan-btn lan-btn-primary" @click="lanJoin()">加入</button>
+              </div>
+            </div>
+            <p class="lan-status">{{ lanStatus }}</p>
+          </template>
+          <template v-if="lanMode === 'lan' && lanConnected">
+            <p class="lan-status" :class="{ 'lan-ok': lanConnected, 'lan-warn': !lanClientConnected && lanRole === 'host' }">{{ lanStatus }}</p>
+            <button v-if="lanConnected" class="lan-btn lan-btn-sm" @click="lanDisconnect()">斷開</button>
+          </template>
         </div>
       </div>
       <div class="difficulty" v-if="mode === 'single'">
@@ -954,4 +1152,19 @@ kbd{display:inline-block;padding:2px 7px;font-size:13px;font-family:inherit;back
 .lb-rank{color:#e94560;font-weight:700;min-width:24px;text-align:left}
 .lb-score{font-weight:600}
 .lb-empty{font-size:12px;color:#667788;padding:8px 0}
+.lan-section{text-align:center;padding:10px;background:#0f3460;border-radius:12px;border:2px solid #1a1a4e;margin-top:8px}
+.lan-toggle{display:flex;gap:6px;justify-content:center;margin-top:6px}
+.lan-btn{padding:5px 12px;font-size:12px;font-weight:600;font-family:inherit;background:#1a1a4e;border:2px solid #334466;border-radius:6px;color:#8899aa;cursor:pointer;transition:all .15s}
+.lan-btn:hover{border-color:#60a5fa;color:#ccddee}
+.lan-btn.active{border-color:#60a5fa;background:#1e3a5f;color:#60a5fa}
+.lan-btn-primary{border-color:#e94560;color:#e94560}
+.lan-btn-primary:hover{background:#e94560;color:#fff}
+.lan-btn-sm{font-size:10px;padding:3px 8px;margin-top:4px}
+.lan-connect{display:flex;flex-direction:column;gap:6px;margin-top:6px}
+.lan-join-row{display:flex;gap:6px;justify-content:center}
+.lan-ip-input{width:90px;padding:4px 8px;font-size:12px;font-weight:600;font-family:inherit;text-align:center;background:#1a1a4e;border:2px solid #334466;border-radius:6px;color:#ccddee;outline:none}
+.lan-ip-input:focus{border-color:#60a5fa}
+.lan-status{font-size:11px;color:#667788;margin-top:4px}
+.lan-ok{color:#4ade80}
+.lan-warn{color:#fbbf24}
 </style>
