@@ -690,6 +690,12 @@ function applyState(state: ReturnType<typeof serializeState>) {
   scoreAnims.value = state.scoreAnims || []
 }
 
+watch([initSpeed, ctfTarget], () => {
+  if (lanMode.value === 'lan' && lanRole.value === 'host' && lanConn?.open) {
+    lanSend({ type: 'state', ...serializeState() })
+  }
+})
+
 function lanSend(data: Record<string, unknown>) {
   if (lanConn && lanConn.open) {
     try { lanConn.send(data) } catch {}
